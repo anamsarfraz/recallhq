@@ -21,7 +21,7 @@ In order to help quickly understand both the visual content and spoken discussio
 - The LLM organizes event content into searchable categories, making it easy for users to find specific parts of the event they are interested in (e.g., “AI in Healthcare” or “Keynote by John Doe”).
 
 ### **Discord Integration for Events** 
-= After an event on Discord, like a webinar, live Q&A, or AMA (Ask Me Anything), RecallHQ could be used to generate the summary of the discussion highlighting key takeaways. The users can review the key points and ask questions without scrolling through long chats.
+- After an event on Discord, like a webinar, live Q&A, or AMA (Ask Me Anything), RecallHQ could be used to generate the summary of the discussion highlighting key takeaways. The users can review the key points and ask questions without scrolling through long chats.
 
 ## **Tech Stack**
 ### Language
