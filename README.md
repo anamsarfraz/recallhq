@@ -27,3 +27,11 @@ In order to help quickly understand both the visual content and spoken discussio
 ### Language
 - Python 3.12
 - Packages are noted in the requirements.txt
+
+## **How to run the app**
+- Make sure you have Python 3.12 installed
+- Setup venv and activate it
+    * `python3.12 -m venv venv`
+    * `source venv/bin/activate`
+- Run `pip install -r requirements.txt` to install the dependencies
+- Run `chainlit run Home.py` to start the app
