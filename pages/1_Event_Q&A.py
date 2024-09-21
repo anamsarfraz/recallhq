@@ -50,35 +50,44 @@ gen_kwargs = {
 # Initialize the OpenAI async client
 client = wrap_openai(openai.AsyncClient(api_key=config["api_key"], base_url=config["endpoint_url"]))
 
-with st.sidebar:
-    "[View the source code](https://github.com/anamsarfraz/recallhq)"
-
-st.title("📝 Event Q&A with OpenAI")
 
 @traceable
-async def generate_answer():
+def setup_event_qa():
+    with st.sidebar:
+        "[View the source code](https://github.com/anamsarfraz/recallhq)"
+
+    st.title("📝 Event Q&A with OpenAI")
+
     uploaded_file = st.file_uploader("Upload a file you want to ask questions about", type=("txt", "md"))
     question = st.text_input(
         "Ask something about the file",
         placeholder="Can you give me a short summary?",
         disabled=not uploaded_file,
     )
-
-    response_container = st.empty()
-    response = "### Answer\n"
+    prompt = ""
     if uploaded_file and question and openai_api_key:
         article = uploaded_file.read().decode()
         prompt = f"""Here's an article:\n\n<article>
         {article}\n\n</article>\n\n{question}"""
+    return prompt
 
-        stream = await client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            stream=True,
-            **gen_kwargs)
 
-        async for part in stream:
-            if token := part.choices[0].delta.content or "":
-                response += token
-                response_container.write(response)
+@traceable
+async def generate_answer(prompt):
+    response_container = st.empty()
+    response = "### Answer\n"
 
-asyncio.run(generate_answer())
+    stream = await client.chat.completions.create(
+        messages=[{"role": "user", "content": prompt}],
+        stream=True,
+        **gen_kwargs)
+
+    async for part in stream:
+        if token := part.choices[0].delta.content or "":
+            response += token
+            response_container.write(response)
+
+
+prompt = setup_event_qa()
+if prompt:
+    asyncio.run(generate_answer(prompt))
