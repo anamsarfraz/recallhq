@@ -112,6 +112,11 @@ def extract_text(audio_path, text_outfile):
 
 
 def process_video(url, output_folder):
+    """
+      Downloads video from the given YouTube URL, extracts audio and text.
+      Returns:
+         (video filepath, audio filepath, text filepath)
+    """
     make_tempdirs(output_folder)
     (_, video_outfile) = download_video(url, output_folder)
     video_path = f"{output_folder}/{video_outfile}"
@@ -123,6 +128,7 @@ def process_video(url, output_folder):
     with open(text_path, 'w') as file:
         file.write(text)
     print(f"Video transcript saved as {text_path}")
+    return (video_path, audio_path, text_path)
 
 def run_main():
     parser = argparse.ArgumentParser(description="Process a YouTube video.")
@@ -137,7 +143,8 @@ def run_main():
 
     print("YouTube url:", args.youtube_url)
     print("Output folder: ", args.output_folder)
-    process_video(args.youtube_url, args.output_folder)
+    (v, a, t) = process_video(args.youtube_url, args.output_folder)
+    print(f"Video saved as {v}, audio as {a}, text as {t}")
 
 if __name__ == "__main__":
     run_main()
