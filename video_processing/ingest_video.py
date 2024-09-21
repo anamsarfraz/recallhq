@@ -8,6 +8,7 @@ from moviepy.editor import VideoFileClip
 import speech_recognition as sr
 import random
 import string
+import os
 import re
 import argparse
 
@@ -25,21 +26,21 @@ def generate_random_string(length):
     random_string = ''.join(random.choice(characters) for _ in range(length))
     return random_string
 
-def generate_videofilename(title, random_str):
+def generate_filename(title, random_str, ext="mp4"):
     title_0 = replace_non_alphanumeric(title, "_")
     title_1=  '_'.join(title_0.strip().split())
-    return f"{title_1}_{random_str}.mp4"
+    return f"{title_1}_{random_str}.{ext}"
 
 def generate_subtitlesfilename(title, random_str):
     title_0 = replace_non_alphanumeric(title, "_")
     title_1=  '_'.join(title_0.strip().split())
     return f"{title_1}_{random_str}_subtitles.srt"
 
-def get_audio_outfile(video_outfile):
-    return video_outfile.replace("mp4", "wav")
+def get_audio_outfile(video_outfile, ext="mp4"):
+    return video_outfile.replace(ext, "wav")
 
-def get_text_outfile(video_outfile):
-    return video_outfile.replace("mp4", "txt")  
+def get_text_outfile(video_outfile, ext="mp4"):
+    return video_outfile.replace(ext, "txt")  
 
 def make_tempdirs(folder_path):
     Path(folder_path).mkdir(parents=True, exist_ok=True)
@@ -60,7 +61,7 @@ def download_video(url, output_path):
     yt = YouTube(url, on_progress_callback=on_progress)
     metadata = {"Author": yt.author, "Title": yt.title, "Views": yt.views}
     rnd_str = generate_random_string(10)
-    outfilename = generate_videofilename(yt.title, rnd_str)
+    outfilename = generate_filename(yt.title, rnd_str)
     print(f"Saving video as {outfilename}")
     yt.streams.get_highest_resolution().download(
         output_path=output_path, filename=outfilename
@@ -111,7 +112,7 @@ def extract_text(audio_path, text_outfile):
     return text
 
 
-def process_video(url, output_folder):
+def process_video(url, output_folder=_example_output_folder):
     """
       Downloads video from the given YouTube URL, extracts audio and text.
       Returns:
@@ -129,6 +130,54 @@ def process_video(url, output_folder):
         file.write(text)
     print(f"Video transcript saved as {text_path}")
     return (video_path, audio_path, text_path)
+
+def get_file_parts(file):
+    """
+    Get the file name and extension of a file.
+
+    Returns:
+        (file_name, file_extension)
+    """
+    file_parts = os.path.splitext(file.name)
+    return file_parts[0].lower(), file_parts[1].lower()[1:]
+
+def save_uploaded_media(uploaded_media, output_folder=_example_output_folder):
+    """
+    Save uploaded media file (video or audio) to the output folder.
+    
+    Returns:
+        (media filepath)
+    """
+    make_tempdirs(output_folder)
+    rnd_str = generate_random_string(10)
+    file_name, file_ext = get_file_parts(uploaded_media)
+    media_outfile = generate_filename(f'{file_name}', rnd_str, file_ext)
+    print(f"Saving media as {media_outfile}")
+    media_path = f"{output_folder}/{media_outfile}"
+    with open(media_path, "wb") as f:
+        f.write(uploaded_media.getvalue())
+    return media_path, file_name, file_ext
+
+def process_uploaded_media(uploaded_media, output_folder=_example_output_folder):
+    """
+    Process uploaded media file (video or audio) and extracts text.
+    Returns:
+        (media filepath, text filepath)
+    """
+    media_path, file_name, file_ext = save_uploaded_media(uploaded_media, output_folder)
+    if file_ext == "mp4":
+        audio_path = get_audio_outfile(media_path)
+        extract_audio(media_path, audio_path)
+    else:
+        audio_path = media_path
+
+    text_path = get_text_outfile(media_path, file_ext)
+    text = extract_text(audio_path, text_path)
+    # Save text to file
+    with open(text_path, 'w') as file:
+        file.write(text)
+    print(f"Media transcript saved as {text_path}")
+    return (media_path, audio_path, text_path)
 
 def run_main():
     parser = argparse.ArgumentParser(description="Process a YouTube video.")
