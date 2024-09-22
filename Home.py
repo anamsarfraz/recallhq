@@ -27,7 +27,7 @@ render_cta()
 
 # T
 home_title = "RecallHQ"
-home_introduction = "Welcome to RecallHQ, where the power of LLM technology is at your fingertips. Upload a video or Youtube link to a video. Then interact  with pre-trained AI Assistants in the Event Q&A. Whether you need to ask questions about the event, or generate summaries, RecallHQ has you covered. Let's start exploring the endless possibilities!"
+home_introduction = "Welcome to RecallHQ, where the power of LLM technology is at your fingertips. Upload a video or Youtube link to a video. Then interact with pre-trained AI Assistant in the Event Q&A. Whether you need to ask questions about the event, or generate summaries, RecallHQ has you covered. Let's start exploring the endless possibilities!"
 home_privacy = "At RecallHQ, your privacy is our top priority. We use OpenAI's Whisper API to extract audio from videos and Youtube links. We do not store any data beyond what is required to process the audio and generate summaries."
 getstarted_prompt = "Ready to explore the endless possibilities of AI? Let's get started today!"
 
