@@ -1,12 +1,40 @@
 import asyncio
 import streamlit as st
+
+from constants import KNOWLEDGE_BASE_PATH
+from utils import update_state
 from video_processing.ingest_video import process_video, process_uploaded_media
+
 
 def provide_post_process_info(media_label, media_paths):
     file_content = {'media_label': f"{media_label}", 'content': media_paths}
     print(f'file_content: {file_content}')
     st.success("Media uploaded successfully!")
     st.info("You can now go to the knowledge base and ask questions about the media.")
+
+def update_knowledge_base(media_label, media_paths):
+    if "knowledge_base" not in st.session_state:
+        st.session_state.knowledge_base = {}
+    st.session_state.knowledge_base[media_label] = media_paths
+    
+    update_state(KNOWLEDGE_BASE_PATH, st.session_state.knowledge_base)
+
+
+def process_content(is_youtube_link, media_label, content):
+    if is_youtube_link:
+        video_path, audio_path, text_path = process_video(content)
+    else:
+        video_path, audio_path, text_path = process_uploaded_media(content)
+
+    media_paths = {
+        "audio_path": audio_path,
+        "text_path": text_path
+    }
+    if audio_path != video_path:
+        media_paths["video_path"] = video_path
+
+    provide_post_process_info(media_label, media_paths)
+    update_knowledge_base(media_label, media_paths)
 
 def setup_media_processor_page():
     app_header = st.container()
@@ -29,12 +57,9 @@ def setup_media_processor_page():
             elif youtube_link:
                 print(f'media_label: {media_label}')
                 print(f'youtube_link: {youtube_link}')
-                with st.spinner("🔍 Extracting transcript..."):
-                    video_path, audio_path, text_path = process_video(youtube_link)
-                    provide_post_process_info(media_label, [video_path, audio_path, text_path])
+                with st.spinner("🔍 Extracting transcript...(might take a while)"):
+                    process_content(is_youtube_link=True, media_label=media_label, content=youtube_link)
             else:
                 with st.spinner("🔍 Reading file... (might take a while)"):
-                    video_path, audio_path, text_path = process_uploaded_media(uploaded_media)
-                    provide_post_process_info(media_label, [video_path, audio_path, text_path])
-
+                    process_content(is_youtube_link=False, media_label=media_label, content=uploaded_media)
 setup_media_processor_page()
