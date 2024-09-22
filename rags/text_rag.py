@@ -8,6 +8,7 @@ from utils import load_state
 from constants import KNOWLEDGE_BASE_PATH
 from llama_index.core.vector_stores import ExactMatchFilter, MetadataFilters
 from llama_index.core.node_parser import SimpleNodeParser
+from vector_stores.local_vs import LocalVS
 # Load environment variables
 load_dotenv()
 
@@ -21,9 +22,20 @@ def load_knowledge_base():
 
     return input_data
 
-input_data = load_knowledge_base()
 
-def load_documents():
+
+def save_processed_document(media_label, input_file):
+    reader = SimpleDirectoryReader(input_files=[input_file])
+    documents = []
+    for doc in reader.load_data():
+        doc.metadata["media_label"] = media_label
+        documents.append(doc)
+    # Update the index with the new documents
+    index = LocalVS()
+    index.add_documents(documents)
+    return documents
+
+def load_documents(input_data):
     input_data = load_knowledge_base()
     reader = SimpleDirectoryReader(input_files=input_data.keys())
 
@@ -34,24 +46,24 @@ def load_documents():
         if file_path is not None:
             doc.metadata["media_label"] = input_data[file_path]
         documents.append(doc)
-
+        
     return documents
 
-
-
 def search_knowledge_base(query, media_label):
-    documents = load_documents()
+    input_data = load_knowledge_base()
+    documents = load_documents(input_data)
     print(f"Number of documents: {len(documents)}")
-    index = VectorStoreIndex.from_documents(documents)
+
     print(f"Query: {query} Media label: {media_label}")
 
     filters = MetadataFilters(
         filters=[ExactMatchFilter(key="media_label", value=media_label),
         ])
-    retriever = index.as_retriever(retrieval_mode='similarity', k=5, filters=filters)
-    # Retrieve relevant documents
-    relevant_docs = retriever.retrieve(query)
 
+    index = LocalVS()
+    print(f"Index documents count: {index.count_documents()}")
+
+    relevant_docs = index.retrieve(query, filters=filters)
     print(f"Number of relevant documents: {len(relevant_docs)}")
     print("\n" + "="*50 + "\n")
 
@@ -78,3 +90,8 @@ def search_knowledge_base(query, media_label):
         
     response_text = response.choices[0].message.content
     return response_text
+
+if __name__ == "__main__":
+    media_label = "What Is an AI Anyway? | Mustafa Suleyman | TED"    
+    query = "What are the dangers of AI?"
+    search_knowledge_base(query, media_label)

@@ -145,7 +145,6 @@ uvicorn==0.25.0
 validators==0.34.0
 watchdog==4.0.2
 watchfiles==0.20.0
-weaviate-client==4.8.1
 wrapt==1.16.0
 wsproto==1.2.0
 yarl==1.11.1
