@@ -1,4 +1,6 @@
 import openai
+import os
+import re
 from dotenv import load_dotenv
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Document
 from llama_index.core.retrievers import VectorIndexRetriever
@@ -22,17 +24,18 @@ def load_knowledge_base():
 
     return input_data
 
-
-
-def save_processed_document(media_label, input_file):
-    reader = SimpleDirectoryReader(input_files=[input_file])
+def save_processed_document(media_label, input_files):
+    print(f"Saving processed document in index: {input_files}")
+    reader = SimpleDirectoryReader(input_files=input_files)
     documents = []
     for doc in reader.load_data():
         doc.metadata["media_label"] = media_label
         documents.append(doc)
     # Update the index with the new documents
-    index = LocalVS()
+    media_label_path = re.sub(r'[^a-zA-Z0-9]', '_', media_label)
+    index = LocalVS(storage_path=os.path.join(os.getenv("LOCALVS_PATH"), media_label_path))
     index.add_documents(documents)
+    print(f"Index documents count after adding new documents: {index.count_documents()}")
     return documents
 
 def load_documents(input_data):
@@ -50,9 +53,9 @@ def load_documents(input_data):
     return documents
 
 def search_knowledge_base(query, media_label):
-    input_data = load_knowledge_base()
-    documents = load_documents(input_data)
-    print(f"Number of documents: {len(documents)}")
+    #input_data = load_knowledge_base()
+    #documents = load_documents(input_data)
+    #print(f"Number of documents: {len(documents)}")
 
     print(f"Query: {query} Media label: {media_label}")
 
@@ -60,7 +63,9 @@ def search_knowledge_base(query, media_label):
         filters=[ExactMatchFilter(key="media_label", value=media_label),
         ])
 
-    index = LocalVS()
+    media_label_path = re.sub(r'[^a-zA-Z0-9]', '_', media_label)
+    index = LocalVS(storage_path=os.path.join(os.getenv("LOCALVS_PATH"), media_label_path))
+
     print(f"Index documents count: {index.count_documents()}")
 
     relevant_docs = index.retrieve(query, filters=filters)

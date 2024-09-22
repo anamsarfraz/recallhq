@@ -34,7 +34,6 @@ class LocalVS:
             self.index = VectorStoreIndex.from_documents(documents if documents is not None else [], storage_context=self.storage_context)
             self.index.storage_context.persist(persist_dir=self.storage_path)
             
-
     def add_documents(self, documents):
         self.index.refresh_ref_docs(documents)
         self.index.storage_context.persist(persist_dir=self.storage_path)
