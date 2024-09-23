@@ -3,6 +3,7 @@ import streamlit as st
 
 from constants import KNOWLEDGE_BASE_PATH
 from utils import update_state
+from rags.text_rag import save_processed_document
 from video_processing.ingest_video import process_video, process_uploaded_media
 
 
@@ -15,9 +16,11 @@ def provide_post_process_info(media_label, media_paths):
 def update_knowledge_base(media_label, media_paths):
     if "knowledge_base" not in st.session_state:
         st.session_state.knowledge_base = {}
-    st.session_state.knowledge_base[media_label] = media_paths
-    
+    st.session_state.knowledge_base.setdefault(media_label, {})
+    for media_type, paths in media_paths.items():
+        st.session_state.knowledge_base[media_label].setdefault(media_type, []).extend(paths)
     update_state(KNOWLEDGE_BASE_PATH, st.session_state.knowledge_base)
+    save_processed_document(media_label, media_paths["text_paths"])
 
 
 def process_content(is_youtube_link, media_label, content):
@@ -27,11 +30,11 @@ def process_content(is_youtube_link, media_label, content):
         video_path, audio_path, text_path = process_uploaded_media(content)
 
     media_paths = {
-        "audio_path": audio_path,
-        "text_path": text_path
+        "audio_paths": [audio_path],
+        "text_paths": [text_path]
     }
     if audio_path != video_path:
-        media_paths["video_path"] = video_path
+        media_paths["video_paths"] = [video_path]
 
     provide_post_process_info(media_label, media_paths)
     update_knowledge_base(media_label, media_paths)

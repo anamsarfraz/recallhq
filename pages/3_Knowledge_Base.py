@@ -3,6 +3,7 @@ import time
 
 from constants import KNOWLEDGE_BASE_PATH
 from utils import load_state
+from rags.text_rag import search_knowledge_base
 
 
 # Initialize session state for the current app phase
@@ -12,12 +13,12 @@ if "messages" not in st.session_state:
     st.session_state.messages = []  # Store chat history
 
 # Function to generate a response from OpenAI GPT-3.5
-def get_openai_response(user_input):
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    bot_response = "This is a test response from OpenAI: " + str(time.time())
-    st.session_state.messages.append({"role": "assistant", "content": bot_response})
+def get_openai_response(user_query):
+    st.session_state.messages.append({"role": "user", "content": user_query})
+    response = search_knowledge_base(user_query, st.session_state.media_label)
+    st.session_state.messages.append({"role": "assistant", "content": response})
     
-    return bot_response
+    return response
 
 # Function to switch to the chat interface
 def switch_to_chat():
@@ -52,6 +53,7 @@ if st.session_state.phase == "starters":
             with cols[idx]:
                 if st.button(prompt):
                     #get_openai_response(prompt)  # Trigger LLM response
+                    st.session_state["media_label"] = prompt
                     update_chat_history(prompt)
                     switch_to_chat()  # Switch to the chat phase
                     st.rerun()  # Rerun the app to update the interface
