@@ -11,17 +11,19 @@ from constants import KNOWLEDGE_BASE_PATH
 from llama_index.core.vector_stores import ExactMatchFilter, MetadataFilters
 from llama_index.core.node_parser import SimpleNodeParser
 from vector_stores.local_vs import LocalVS
+from llama_index.embeddings.openai import OpenAIEmbedding
 # Load environment variables
 load_dotenv()
 
 
-def load_knowledge_base():
+def load_knowledge_base(media_label):
     # load knowledge base
-    knowledge_base = load_state(KNOWLEDGE_BASE_PATH)
+    knowledge_base = load_state(KNOWLEDGE_BASE_PATH)[media_label]
     input_data = {
-        media_paths["text_path"].replace("./", "").replace("//", "/"): media_label 
-        for media_label, media_paths in knowledge_base.items()}
-
+        text_path.replace("./", "").replace("//", "/"): media_label
+        for text_path in knowledge_base["text_paths"]
+    }
+    print(f"Knowledge base loaded: {input_data}")
     return input_data
 
 def save_processed_document(media_label, input_files):
@@ -39,9 +41,7 @@ def save_processed_document(media_label, input_files):
     return documents
 
 def load_documents(input_data):
-    input_data = load_knowledge_base()
     reader = SimpleDirectoryReader(input_files=input_data.keys())
-
     documents = []
     for doc in reader.load_data():
         # Assuming doc has a filename or similar attribute
@@ -53,22 +53,14 @@ def load_documents(input_data):
     return documents
 
 def search_knowledge_base(query, media_label):
-    #input_data = load_knowledge_base()
-    #documents = load_documents(input_data)
-    #print(f"Number of documents: {len(documents)}")
-
     print(f"Query: {query} Media label: {media_label}")
-
-    filters = MetadataFilters(
-        filters=[ExactMatchFilter(key="media_label", value=media_label),
-        ])
-
+    embedding_model = OpenAIEmbedding(model="text-embedding-ada-002")
     media_label_path = re.sub(r'[^a-zA-Z0-9]', '_', media_label)
-    index = LocalVS(storage_path=os.path.join(os.getenv("LOCALVS_PATH"), media_label_path))
-
+    
+    index = LocalVS(storage_path=os.path.join(os.getenv("LOCALVS_PATH"), media_label_path), embed_model=embedding_model)
     print(f"Index documents count: {index.count_documents()}")
+    relevant_docs = index.retrieve(query, retrieval_mode='hybrid', k=10)
 
-    relevant_docs = index.retrieve(query, filters=filters)
     print(f"Number of relevant documents: {len(relevant_docs)}")
     print("\n" + "="*50 + "\n")
 
@@ -97,6 +89,11 @@ def search_knowledge_base(query, media_label):
     return response_text
 
 if __name__ == "__main__":
-    media_label = "What Is an AI Anyway? | Mustafa Suleyman | TED"    
-    query = "What are the dangers of AI?"
-    search_knowledge_base(query, media_label)
+    media_label = 'Google I/O 2024'
+    input_data = load_knowledge_base(media_label)
+    documents = load_documents(input_data)
+    print(f"Number of documents: {len(documents)}")
+    print(f"Query: {query} Media label: {media_label}")
+    index = VectorStoreIndex.from_documents(documents, embed_model=embedding_model)
+    print(f"Index count: {len(index.docstore.docs)}")
+    retriever = index.as_retriever(retrieval_mode='hybrid', k=10)
