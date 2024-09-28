@@ -4,7 +4,7 @@ import streamlit as st
 from constants import KNOWLEDGE_BASE_PATH
 from utils import update_state
 from rags.text_rag import save_processed_document
-from video_processing.ingest_video import process_video, process_uploaded_media
+from video_processing.ingest_video import process_uploaded_media, Video
 
 
 def provide_post_process_info(media_label, media_paths):
@@ -30,7 +30,9 @@ def process_content(is_youtube_link, media_label, content):
         audio_paths = []
         text_paths = []
         for youtube_link in youtube_links:
-            video_path, audio_path, text_path = process_video(youtube_link.strip())
+            video = Video.from_url(youtube_link.strip())
+            video.download()
+            video_path, audio_path, text_path = video.process_video()
             video_paths.append(video_path)
             audio_paths.append(audio_path)
             text_paths.append(text_path)
