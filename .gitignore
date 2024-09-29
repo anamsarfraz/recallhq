@@ -163,3 +163,4 @@ cython_debug/
 
 # Images directory
 .files/
+events-kb/
