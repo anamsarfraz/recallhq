@@ -12,9 +12,48 @@ from llama_index.core.vector_stores import ExactMatchFilter, MetadataFilters
 from llama_index.core.node_parser import SimpleNodeParser
 from vector_stores.local_vs import LocalVS
 from llama_index.embeddings.openai import OpenAIEmbedding
+#from langsmith.wrappers import wrap_openai
+
 # Load environment variables
 load_dotenv()
 
+endpoint_url = "https://api.openai.com/v1"
+
+configurations = {
+    "mistral_7B_instruct": {
+        "endpoint_url": os.getenv("MISTRAL_7B_INSTRUCT_ENDPOINT"),
+        "api_key": os.getenv("RUNPOD_API_KEY"),
+        "model": "mistralai/Mistral-7B-Instruct-v0.3"
+    },
+    "mistral_7B": {
+        "endpoint_url": os.getenv("MISTRAL_7B_ENDPOINT"),
+        "api_key": os.getenv("RUNPOD_API_KEY"),
+        "model": "mistralai/Mistral-7B-v0.1"
+    },
+    "openai_gpt-4": {
+        "endpoint_url": os.getenv("OPENAI_ENDPOINT"),
+        "api_key": os.getenv("OPENAI_API_KEY"),
+        "model": "gpt-4o-mini",
+        "audio_model": "tts-1"
+    }
+}
+
+# Choose configuration
+config_key = "openai_gpt-4"
+#config_key = "mistral_7B_instruct"
+#config_key = "mistral_7B"
+
+# Get selected configuration
+config = configurations[config_key]
+
+# Model kwargs
+gen_kwargs = {
+    "model": config["model"],
+    "temperature": 0.2,
+    "max_tokens": 500
+}
+
+client = openai.AsyncClient(api_key=config["api_key"], base_url=config["endpoint_url"])
 
 def load_knowledge_base(media_label):
     # load knowledge base
@@ -52,6 +91,26 @@ def load_documents(input_data):
         
     return documents
 
+async def update_response_container(response_container, response_text, token):
+    response_text.append(token)
+    response_container.markdown(''.join(response_text))
+
+async def get_llm_response(query, messages, response_container=None):
+
+    response_text = []
+
+    stream = await client.chat.completions.create(
+        messages=messages,
+        stream=True,
+        **gen_kwargs)
+
+    async for part in stream:
+        if token := part.choices[0].delta.content or "":
+            #await update_response_container(response_container, response_text, token)
+            response_text.append(token)
+            response_container.markdown(''.join(response_text))
+    return ''.join(response_text)
+
 def search_knowledge_base(query, media_label):
     print(f"Query: {query} Media label: {media_label}")
     embedding_model = OpenAIEmbedding(model="text-embedding-ada-002")
@@ -71,22 +130,7 @@ def search_knowledge_base(query, media_label):
         print(f"Score: {doc.score}")
         print("\n" + "="*50 + "\n")
 
-    client = openai.OpenAI()
-        
-    prompt = f"""
-        Given the following context, answer the question:
-        {relevant_docs}
-        Question: {query}
-        """
-        
-    response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2
-        )
-        
-    response_text = response.choices[0].message.content
-    return response_text
+    return relevant_docs
 
 if __name__ == "__main__":
     media_label = 'Google I/O 2024'

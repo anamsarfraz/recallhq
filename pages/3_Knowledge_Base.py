@@ -1,10 +1,10 @@
 import streamlit as st
 import time
-
+import asyncio
 from constants import KNOWLEDGE_BASE_PATH
 from utils import load_state
 from rags.text_rag import search_knowledge_base
-
+from rags.text_rag import get_llm_response
 
 # Initialize session state for the current app phase
 if "phase" not in st.session_state:
@@ -13,12 +13,21 @@ if "messages" not in st.session_state:
     st.session_state.messages = []  # Store chat history
 
 # Function to generate a response from OpenAI GPT-3.5
-def get_openai_response(user_query):
-    st.session_state.messages.append({"role": "user", "content": user_query})
-    response = search_knowledge_base(user_query, st.session_state.media_label)
-    st.session_state.messages.append({"role": "assistant", "content": response})
+async def get_openai_response(user_query):
+    msg = {"role": "user", "content": user_query}
+    st.session_state.messages.append(msg)
+    st.chat_message(msg["role"]).write(msg["content"])
+    response_container = st.empty()
+    relevant_docs = search_knowledge_base(user_query, st.session_state.media_label)
+    prompt = f"""
+        Context:
+        {relevant_docs}
+        """
+    st.session_state.messages.append({"role": "system", "content": prompt})
+    response_text = await get_llm_response(user_query, messages=st.session_state.messages, response_container=response_container)
+    st.session_state.messages.append({"role": "assistant", "content": response_text})
     
-    return response
+    return response_text
 
 # Function to switch to the chat interface
 def switch_to_chat():
@@ -35,7 +44,8 @@ def update_chat_history(prompt):
 # Display the current chat history in a chat-like format
 def display_chat_history():
     for msg in st.session_state.messages:
-        st.chat_message(msg["role"]).write(msg["content"])
+        if msg["role"] in {"user", "assistant"}:
+            st.chat_message(msg["role"]).write(msg["content"])
 
 # Streamlit layout
 st.title("Knowledge Base for Events")
@@ -74,8 +84,10 @@ if st.session_state.phase == "chat":
     # Button to send message
     #if st.button("Send"):
     if user_input := st.chat_input():
-        get_openai_response(user_input)
-        st.rerun()  # Update the chat with the new message
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(get_openai_response(user_input))
+        # st.rerun()  # Update the chat with the new message
 
     # Button to go back to starter prompts
     if go_back_button:
