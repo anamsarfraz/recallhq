@@ -38,17 +38,20 @@ def process_content(is_youtube_link, media_label, content):
             text_paths.append(text_path)
     else:
         video_path, audio_path, text_path = process_uploaded_media(content)
-        video_paths = [video_path]
-        audio_paths = [audio_path]
+        if video_path is None and audio_path is None and text_path is None:
+            st.error("Failed to process the uploaded media. Please make sure the media is in a supported format.")
+            return
+        video_paths = [video_path] if video_path else []
+        audio_paths = [audio_path] if audio_path else []
         text_paths = [text_path]
 
     media_paths = {
-        "audio_paths": audio_paths,
         "text_paths": text_paths
     }
     if audio_paths != video_paths:
         media_paths["video_paths"] = video_paths
-
+    if text_paths != audio_paths:
+        media_paths["audio_paths"] = audio_paths
     provide_post_process_info(media_label, media_paths)
     update_knowledge_base(media_label, media_paths)
 
@@ -64,7 +67,7 @@ def setup_media_processor_page():
         media_label = st.text_input(label="Media Tag", placeholder="Enter a required label or tag to identify the media")
         youtube_links = st.text_input(label="🔗 YouTube Link(s)",
                                                     placeholder="Enter your YouTube link(s) to download the video and extract the audio")
-        uploaded_media = st.file_uploader("📁 Upload your file", type=['mp4', 'wav'])
+        uploaded_media = st.file_uploader("📁 Upload your file", type=['mp4', 'wav', 'txt'])
         submit_button = st.form_submit_button(label="Process Media")
 
         if media_label and submit_button and (youtube_links or uploaded_media):
