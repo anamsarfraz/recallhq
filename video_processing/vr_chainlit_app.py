@@ -5,7 +5,8 @@ import base64
 from langfuse.decorators import observe
 from langfuse.openai import AsyncOpenAI
 from video_rag import VideoRag
-import re, json
+from ingest_video import Video, generate_random_string, make_tempdirs
+import re, json, shutil
 
 from dotenv import load_dotenv
 
@@ -39,6 +40,9 @@ If the user asks questions regarding the video, generate this function call:
 """
 
 client = AsyncOpenAI()
+
+KB_BASE = "./events-kb"
+VIDEO_FOLDER = "./video_lib/"
 
 gen_kwargs = {
     "model": "gpt-4o",
@@ -104,8 +108,22 @@ def add_user_message(message_history, msg):
 def add_assistant_message(message_history, msg):
     message_history.append({"role": "assistant", "content": msg})
 
+def download_video(url, images_folder, output_folder):
+    video = Video.from_url(url)
+    video.download(output_folder)
+    (v, a, t) = video.process_video()
+    video.extract_images(f"{images_folder}/images/")
+    print(f"Video saved as {v}, audio as {a}, text as {t}")
+    return (v, a, t)
+
 def process_video(url):
-    video_rag = VideoRag("./events_kb/event1/")
+    event_id = generate_random_string(10)
+    events_folder = f"{KB_BASE}/event_{event_id}"
+    make_tempdirs(events_folder)
+    v, a, t = download_video(url, events_folder, f"{VIDEO_FOLDER}/video_{event_id}/")
+    print(f"Copying text file from {t} to {events_folder}")
+    shutil.copy(t, f"{events_folder}/")
+    video_rag = VideoRag(events_folder)
     video_rag.create_index()
     video_rag.init_multimodal_oai()
     cl.user_session.set("video_rag", video_rag)
