@@ -81,7 +81,7 @@ class Video:
         dict: A dictionary containing the metadata of the video.
         """
 
-        yt = YouTube(self.url, on_progress_callback=on_progress)
+        yt = YouTube(self.url, 'WEB_CREATOR', on_progress_callback=on_progress)
         metadata = {"Author": yt.author, "Title": yt.title, "Views": yt.views}
         rnd_str = generate_random_string(10)
         outfilename = generate_filename(yt.title, rnd_str)
@@ -111,6 +111,18 @@ class Video:
         audio = clip.audio
         audio.write_audiofile(output_audio_path)
         self.audio_filepath = output_audio_path
+
+    def extract_images(self, images_output_path):
+        """
+        Convert a video to a sequence of images and save them to the output folder. Currently, blindly does one 
+        image per 5 sec (fps at 0.2)
+        """
+        clip = VideoFileClip(self.video_filepath)
+        make_tempdirs(images_output_path)
+        print(f"Extracting frames to {images_output_path}")
+        clip.write_images_sequence(
+            os.path.join(images_output_path, "frame%04d.png"), fps=0.2 #configure this for controlling frame rate.
+        )
 
     def extract_text(self, text_outfile):
         """
@@ -202,6 +214,7 @@ def run_main():
     video = Video.from_url(args.youtube_url)
     video.download(args.output_folder)
     (v, a, t) = video.process_video()
+    video.extract_images("./temp/images/")
     print(f"Video saved as {v}, audio as {a}, text as {t}")
 
 if __name__ == "__main__":
