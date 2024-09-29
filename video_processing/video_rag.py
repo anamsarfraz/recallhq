@@ -10,6 +10,7 @@ from llama_index.core.schema import ImageNode
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal
 
 
+
 class VideoRag:
     _query_prompt = (
     "Given the provided information, including relevant images and retrieved context from the video which represents an event, \
