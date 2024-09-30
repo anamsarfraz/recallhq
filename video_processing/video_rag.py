@@ -48,7 +48,6 @@ class VideoRag:
             if isinstance(res_node.node, ImageNode):
                 retrieved_image.append(res_node.node.metadata["file_path"])
             else:
-                display_source_node(res_node, source_length=200)
                 retrieved_text.append(res_node.text)
 
         return retrieved_image, retrieved_text 
@@ -61,7 +60,7 @@ class VideoRag:
 
     def retrieve(self, query_str):
         img, txt = self.retrieve_internal(retriever_engine=self.retriever_engine, query_str=query_str)
-        image_documents = SimpleDirectoryReader(input_dir=self.data_path, input_files=img).load_data()
+        image_documents = SimpleDirectoryReader(input_dir=self.data_path, input_files=img).load_data() if img else []
         context_str = "".join(txt)
         return context_str, image_documents
     
