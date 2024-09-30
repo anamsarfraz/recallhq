@@ -194,10 +194,23 @@ def process_uploaded_media(uploaded_media, output_folder=Video._example_output_f
         (media filepath, text filepath)
     """
     media_path, file_name, file_ext = save_uploaded_media(uploaded_media, output_folder)
-    video = Video.from_file(media_path)
-    video.process_video()
-    return (video.video_filepath, video.audio_filepath, video.text_filepath)
-
+    if file_ext not in {"mp4", "wav", "mp3", "txt"}:
+        return None, None, None
+    if file_ext == "mp4":
+        video = Video.from_file(media_path)
+        return video.process_video()
+    elif file_ext in {"wav", "mp3"}:
+        audio_path = media_path
+        text_path = get_text_outfile(media_path, file_ext)
+        text = extract_text(audio_path, text_path)
+        # Save text to file
+        with open(text_path, 'w') as file:
+            file.write(text)
+        return (media_path, audio_path, text_path)
+    elif file_ext == "txt":
+        text_path = media_path
+        return (media_path, media_path, text_path)
+    
 def run_main():
     parser = argparse.ArgumentParser(description="Process a YouTube video.")
 

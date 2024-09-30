@@ -3,8 +3,8 @@ import streamlit as st
 
 from constants import KNOWLEDGE_BASE_PATH
 from utils import update_state
-from rags.text_rag import save_processed_document
-from video_processing.ingest_video import process_video, process_uploaded_media
+from rags.text_rag import save_processed_document, generate_tags
+from video_processing.ingest_video import process_uploaded_media, Video
 
 
 def provide_post_process_info(media_label, media_paths):
@@ -19,9 +19,9 @@ def update_knowledge_base(media_label, media_paths):
     st.session_state.knowledge_base.setdefault(media_label, {})
     for media_type, paths in media_paths.items():
         st.session_state.knowledge_base[media_label].setdefault(media_type, []).extend(paths)
-    update_state(KNOWLEDGE_BASE_PATH, st.session_state.knowledge_base)
     save_processed_document(media_label, media_paths["text_paths"])
-
+    st.session_state.knowledge_base[media_label]["tags"] = generate_tags(media_label)["tags"]
+    update_state(KNOWLEDGE_BASE_PATH, st.session_state.knowledge_base)
 
 def process_content(is_youtube_link, media_label, content):
     if is_youtube_link:
@@ -30,23 +30,28 @@ def process_content(is_youtube_link, media_label, content):
         audio_paths = []
         text_paths = []
         for youtube_link in youtube_links:
-            video_path, audio_path, text_path = process_video(youtube_link.strip())
+            video = Video.from_url(youtube_link.strip())
+            video.download()
+            video_path, audio_path, text_path = video.process_video()
             video_paths.append(video_path)
             audio_paths.append(audio_path)
             text_paths.append(text_path)
     else:
         video_path, audio_path, text_path = process_uploaded_media(content)
-        video_paths = [video_path]
-        audio_paths = [audio_path]
+        if video_path is None and audio_path is None and text_path is None:
+            st.error("Failed to process the uploaded media. Please make sure the media is in a supported format.")
+            return
+        video_paths = [video_path] if video_path else []
+        audio_paths = [audio_path] if audio_path else []
         text_paths = [text_path]
 
     media_paths = {
-        "audio_paths": audio_paths,
         "text_paths": text_paths
     }
     if audio_paths != video_paths:
         media_paths["video_paths"] = video_paths
-
+    if text_paths != audio_paths:
+        media_paths["audio_paths"] = audio_paths
     provide_post_process_info(media_label, media_paths)
     update_knowledge_base(media_label, media_paths)
 
@@ -62,7 +67,7 @@ def setup_media_processor_page():
         media_label = st.text_input(label="Media Tag", placeholder="Enter a required label or tag to identify the media")
         youtube_links = st.text_input(label="🔗 YouTube Link(s)",
                                                     placeholder="Enter your YouTube link(s) to download the video and extract the audio")
-        uploaded_media = st.file_uploader("📁 Upload your file", type=['mp4', 'wav'])
+        uploaded_media = st.file_uploader("📁 Upload your file", type=['mp4', 'wav', 'txt'])
         submit_button = st.form_submit_button(label="Process Media")
 
         if media_label and submit_button and (youtube_links or uploaded_media):
