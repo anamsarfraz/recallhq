@@ -34,9 +34,10 @@ class VideoRag:
 
             self.text_store = QdrantVectorStore(client=self.qdrant_client, collection_name="text_collection")
             self.image_store = QdrantVectorStore(client=self.qdrant_client, collection_name="image_collection")
+        else:
+            self.text_store = LanceDBVectorStore(uri="lancedb", table_name="text_collection")
+            self.image_store = LanceDBVectorStore(uri="lancedb", table_name="image_collection")
 
-        self.text_store = LanceDBVectorStore(uri="lancedb", table_name="text_collection")
-        self.image_store = LanceDBVectorStore(uri="lancedb", table_name="image_collection")
         storage_context = StorageContext.from_defaults(vector_store=self.text_store, image_store=self.image_store)
 
         # Create the MultiModal index
