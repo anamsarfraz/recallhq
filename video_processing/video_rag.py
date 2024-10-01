@@ -3,12 +3,13 @@ from llama_index.core.indices import MultiModalVectorStoreIndex
 
 from llama_index.core import SimpleDirectoryReader, StorageContext
 from llama_index.vector_stores.lancedb import LanceDBVectorStore
+from llama_index.vector_stores.qdrant import QdrantVectorStore
 
-from llama_index.core.response.notebook_utils import display_source_node
 from llama_index.core.schema import ImageNode
 
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal
 
+import qdrant_client
 
 
 class VideoRag:
@@ -22,10 +23,18 @@ class VideoRag:
     "Query: {query_str}\n"
     "Answer: "
     )
-    def __init__(self, data_path):
+    def __init__(self, data_path, use_qdrant=True):
         self.data_path = data_path
+        self.use_qdrant = use_qdrant
     
     def create_index(self):
+        if self.use_qdrant:
+            # Create a local Qdrant vector store
+            self.qdrant_client = qdrant_client.QdrantClient(path="qdrant_mm_db")
+
+            self.text_store = QdrantVectorStore(client=self.qdrant_client, collection_name="text_collection")
+            self.image_store = QdrantVectorStore(client=self.qdrant_client, collection_name="image_collection")
+
         self.text_store = LanceDBVectorStore(uri="lancedb", table_name="text_collection")
         self.image_store = LanceDBVectorStore(uri="lancedb", table_name="image_collection")
         storage_context = StorageContext.from_defaults(vector_store=self.text_store, image_store=self.image_store)
