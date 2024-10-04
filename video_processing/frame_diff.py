@@ -49,7 +49,7 @@ class OpenCVFrameWriter:
         if debug_video_outfile:
             # Define a codec and create a VideoWriter object to save output frames as MP4
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use mp4v codec for MP4 output
-            debug_out = cv2.VideoWriter('output_video.mp4', fourcc, 20.0, (int(cap.get(3)), int(cap.get(4))))
+            debug_out = cv2.VideoWriter(debug_video_outfile, fourcc, 20.0, (int(cap.get(3)), int(cap.get(4))))
 
 
         while cap.isOpened():
