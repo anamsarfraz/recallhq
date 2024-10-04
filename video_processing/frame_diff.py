@@ -85,7 +85,7 @@ class OpenCVFrameWriter:
                 if debug_out:
                     debug_out.write(frame)  # Save the frame
 
-            prev_frame = frame
+                prev_frame = frame
             frame_count += 1
 
         cap.release()
