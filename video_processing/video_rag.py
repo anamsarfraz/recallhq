@@ -10,6 +10,7 @@ from llama_index.core.schema import ImageNode
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal
 
 import qdrant_client
+from tinydb import TinyDB
 
 
 class VideoRag:
@@ -23,11 +24,19 @@ class VideoRag:
     "Query: {query_str}\n"
     "Answer: "
     )
-    def __init__(self, data_path, use_qdrant=True):
+    def __init__(self, data_path, text_tsindex_filepath = None, image_tsindex_filepath = None, use_qdrant=True):
         self.data_path = data_path
         self.use_qdrant = use_qdrant
+        self.text_tsindex_filepath = text_tsindex_filepath
+        self.image_tsindex_filepath = image_tsindex_filepath
     
     def create_index(self):
+        if self.text_tsindex_filepath:
+            self.text_tsindex = TinyDB(self.text_tsindex_filepath)
+        
+        if self.image_tsindex_filepath:
+            self.image_tsindex  = TinyDB(self.image_tsindex_filepath)
+
         if self.use_qdrant:
             # Create a local Qdrant vector store
             self.qdrant_client = qdrant_client.QdrantClient(path="qdrant_mm_db")
@@ -48,6 +57,24 @@ class VideoRag:
             storage_context=storage_context,
             )
         self.retriever_engine = self.index.as_retriever(similarity_top_k=5, image_similarity_top_k=5)
+
+    def print_text_tsindex(self):
+        if self.text_tsindex:
+            all_records = self.text_tsindex.all()
+            print(f"Number of records = f{len(all_records)}")
+            print("-----------")
+            print(all_records)
+        else:
+            print("Text ts index doesn't exist.")
+
+    def print_image_tsindex(self):
+        if self.image_tsindex:
+            all_records = self.image_tsindex.all()
+            print(f"Number of records = f{len(all_records)}")
+            print("-----------")
+            print(all_records)
+        else:
+            print("Image ts index doesn't exist.")
 
     def retrieve_internal(self, retriever_engine, query_str):
         retrieval_results = retriever_engine.retrieve(query_str)
@@ -83,3 +110,4 @@ class VideoRag:
 
         print(text_response.text)
         return text_response.text
+
