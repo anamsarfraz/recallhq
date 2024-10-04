@@ -11,6 +11,8 @@ import string
 import os
 import re
 import argparse
+from frame_diff import OpenCVFrameWriter
+from whisper_turbo import WhisperTurbo
 
 def replace_non_alphanumeric(input_string, rep_string):
     # Replace all non-alphabetic and non-numeric characters with a space
@@ -112,6 +114,20 @@ class Video:
         audio.write_audiofile(output_audio_path)
         self.audio_filepath = output_audio_path
 
+
+    def extract_images_with_index(self, eventkb_output_path):
+        """
+           Convert a video to a sequence of images and save them to the output folder. Uses a diff threshold strategy.
+           Outputs to an image subfolder within 'eventkb_output_path'
+        """
+        json_index_outputpath = f"{eventkb_output_path}/video_index.json"
+        frame_outputpath = f"{eventkb_output_path}/data/frames/"
+        make_tempdirs(frame_outputpath)
+        threshold_ratio = 0.2
+        debug_outfile = f"{eventkb_output_path}/debug_outvideo.mp4"
+        frame_writer = OpenCVFrameWriter(self.video_filepath, json_index_outputpath, frame_outputpath, threshold_ratio)
+        frame_writer.process_video(debug_outfile)
+
     def extract_images(self, images_output_path):
         """
         Convert a video to a sequence of images and save them to the output folder. Currently, blindly does one 
@@ -123,6 +139,16 @@ class Video:
         clip.write_images_sequence(
             os.path.join(images_output_path, "frame%04d.png"), fps=0.2 #configure this for controlling frame rate.
         )
+
+    def extract_text_with_index(self, eventkb_output_path):
+        whisper = WhisperTurbo(model_type=WhisperTurbo.SMALL_MODEL)
+        whisper.load()
+        self.text_filepath = f"{eventkb_output_path}/transcription_full.txt"
+        whisper.transcribe(self.video_filepath, self.text_filepath)
+        whisper.output_text_jsonindex(f"{eventkb_output_path}/text_jsonindex.json")
+        text_outpath = f"{eventkb_output_path}/data/shards/"
+        make_tempdirs(text_outpath)
+        whisper.output_textonly_shards(text_outpath)
 
     def extract_text(self, text_outfile):
         """
@@ -154,8 +180,15 @@ class Video:
         make_tempdirs(output_folder)
         (_, video_outfile) = self._download_video(output_folder)
         self.video_filepath = f"{output_folder}/{video_outfile}"
+    
+    def process_video_with_index(self, events_folder):
+        self.audio_filepath = get_audio_outfile(self.video_filepath)
+        self.extract_audio(self.audio_filepath)
+        self.extract_text_with_index(events_folder)
+        return (self.video_filepath, self.audio_filepath, self.text_filepath)
+        
 
-    def process_video(self):
+    def process_video_legacy(self):
         """
         Downloads video from the given YouTube URL, extracts audio and text.
         Returns:
@@ -164,6 +197,7 @@ class Video:
         # Video must have been already downloaded if url was provided.
         self.audio_filepath = get_audio_outfile(self.video_filepath)
         self.text_filepath = get_text_outfile(self.video_filepath)
+
         self.extract_audio(self.audio_filepath)
         self.extract_text(self.text_filepath)
         
@@ -198,7 +232,7 @@ def process_uploaded_media(uploaded_media, output_folder=Video._example_output_f
         return None, None, None
     if file_ext == "mp4":
         video = Video.from_file(media_path)
-        return video.process_video()
+        return video.process_video_legacy()
     elif file_ext in {"wav", "mp3"}:
         audio_path = media_path
         text_path = get_text_outfile(media_path, file_ext)
@@ -226,7 +260,7 @@ def run_main():
     print("Output folder: ", args.output_folder)
     video = Video.from_url(args.youtube_url)
     video.download(args.output_folder)
-    (v, a, t) = video.process_video()
+    (v, a, t) = video.process_video_legacy()
     video.extract_images("./temp/images/")
     print(f"Video saved as {v}, audio as {a}, text as {t}")
 

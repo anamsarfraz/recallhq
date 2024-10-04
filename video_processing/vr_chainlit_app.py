@@ -108,22 +108,38 @@ def add_user_message(message_history, msg):
 def add_assistant_message(message_history, msg):
     message_history.append({"role": "assistant", "content": msg})
 
-def download_video(url, images_folder, output_folder):
-    video = Video.from_url(url)
-    video.download(output_folder)
-    (v, a, t) = video.process_video()
-    video.extract_images(f"{images_folder}/images/")
+def is_http_url(url):
+    return "youtube" in url or "http" in url
+
+def download_and_process_video(url, events_folder, output_folder):
+    print("url = ", url)
+    if is_http_url(url):
+        print("is http returned true")
+        video = Video.from_url(url)
+        video.download(output_folder)
+    else:
+        # change this for temporary debugging.
+        file_fullpath =  os.getcwd() + "/video_lib_2/" + url
+        print("Processing local video file: ", file_fullpath)
+        make_tempdirs(output_folder)
+        # we mimic a youtube download by just moving the file there.
+        shutil.copy(file_fullpath, output_folder)
+        video = Video.from_file(f"{output_folder}/{url}")
+
+    (v, a, t) = video.process_video_with_index(events_folder)
+    # OLD: video.extract_images(f"{images_folder}/images/") 
+    video.extract_images_with_index(events_folder)
     print(f"Video saved as {v}, audio as {a}, text as {t}")
     return (v, a, t)
 
-def process_video(url):
+def compute_video_rag(url):
     event_id = generate_random_string(10)
     events_folder = f"{KB_BASE}/event_{event_id}"
     make_tempdirs(events_folder)
-    v, a, t = download_video(url, events_folder, f"{VIDEO_FOLDER}/video_{event_id}/")
-    print(f"Copying text file from {t} to {events_folder}")
-    shutil.copy(t, f"{events_folder}/")
-    video_rag = VideoRag(events_folder)
+    v, a, t = download_and_process_video(url, events_folder, f"{VIDEO_FOLDER}/video_{event_id}/")
+    #print(f"Copying text file from {t} to {events_folder}")
+    #shutil.copy(t, f"{events_folder}/")
+    video_rag = VideoRag(f"{events_folder}/data")
     video_rag.create_index()
     video_rag.init_multimodal_oai()
     cl.user_session.set("video_rag", video_rag)
@@ -175,7 +191,7 @@ async def on_message(message: cl.Message):
                 youtube_url = function_call["video_url"]
             else:
                 youtube_url = cl.user_session.get('url')
-            process_video(youtube_url)
+            compute_video_rag(youtube_url)
             add_system_message(message_history, f"Video processing complete. User may ask questions regarding the video.")
             last_llm_response = await generate_llmresponse(client, message_history, gen_kwargs)
         elif function_call["function_name"] == "query_video":
