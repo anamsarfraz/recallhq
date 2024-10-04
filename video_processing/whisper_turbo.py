@@ -43,11 +43,11 @@ class WhisperTurbo:
 
         self.result = self.pipe(file_path, return_timestamps=True, generate_kwargs={"language": "english"})
         output_list = self.result["chunks"]
-        print(output_list)
         output_text = self.output_chunk_tostr(output_list)
-        print(output_text)
-        with open(output_path, "w") as file:
-            file.write(output_text)
+        if output_path:
+            with open(output_path, "w") as file:
+                file.write(output_text)
+        return output_text
 
     def output_chunk_tostr(self, output_list):
         """ Converts the list of (timestamp) -> sentences to a readable string
