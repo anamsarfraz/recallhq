@@ -43,11 +43,74 @@ class WhisperTurbo:
 
         self.result = self.pipe(file_path, return_timestamps=True, generate_kwargs={"language": "english"})
         output_list = self.result["chunks"]
+        output_list = self.sanitize_timestamps_2(output_list)
+        self.result["chunks"] = output_list
         output_text = self.output_chunk_tostr(output_list)
         if output_path:
             with open(output_path, "w") as file:
                 file.write(output_text)
         return output_text
+
+    def sanitize_timestamps(self, result_list):
+        print("Sanitization start")
+        sanitized_list = []
+        current_ts = 0.0
+        did_tsreset = False
+        prev_end = 0.0
+        for x in result_list:
+            (start, end) = x['timestamp']
+            text = x['text']
+            new_start = start
+            new_end = end
+            if start < (current_ts * 0.9):
+                if not did_tsreset:
+                    did_tsreset = True
+                    new_start = current_ts + start
+                    new_end = current_ts + end
+                elif prev_end > start:  # local reset.
+                    new_start = current_ts + start 
+                    new_end = new_start + (end - start)
+                else:
+                    new_start = current_ts + start - prev_end 
+                    new_end = new_start + (end - start)
+
+            sanitized_list.append({'timestamp': (round(new_start, 3), round(new_end, 3)), 'text': text})
+            print(f"({start}, {end} -- {new_start}, {new_end}: {text}")
+            # update current_ts
+            current_ts = new_end
+            prev_end = end
+        print("Sanitization end")
+        return sanitized_list
+
+
+    def sanitize_timestamps_2(self, result_list):
+        """
+            Simplified.
+        """
+        print("Sanitization start")
+        sanitized_list = []
+        current_ts = 0.0
+        prev_end = 0.0
+        for x in result_list:
+            (start, end) = x['timestamp']
+            text = x['text']
+            current_ts = max(current_ts, start)
+            interval_delta = 0.0
+            if prev_end > start: # timestamp reset
+                interval_delta = start
+            else:
+                interval_delta = start-prev_end # handle gaps
+            current_ts = current_ts + interval_delta
+            new_start = current_ts
+            new_end = current_ts + (end - start)
+            sanitized_list.append({'timestamp': (round(new_start, 3), round(new_end, 3)), 'text': text})
+            print(f"({start}, {end} -- {new_start}, {new_end}: {text}")
+            current_ts = new_end
+            prev_end = end
+
+        print("Sanitization end")
+        return sanitized_list
+            
 
     def output_chunk_tostr(self, output_list):
         """ Converts the list of (timestamp) -> sentences to a readable string
