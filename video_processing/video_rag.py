@@ -1,7 +1,9 @@
-
+import os
+import json
+from glob import glob
 from llama_index.core.indices import MultiModalVectorStoreIndex
 
-from llama_index.core import SimpleDirectoryReader, StorageContext
+from llama_index.core import SimpleDirectoryReader, StorageContext, load_index_from_storage
 from llama_index.vector_stores.lancedb import LanceDBVectorStore
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
@@ -24,39 +26,72 @@ class VideoRag:
     "Query: {query_str}\n"
     "Answer: "
     )
-    def __init__(self, data_path, text_tsindex_filepath = None, image_tsindex_filepath = None, use_qdrant=True):
+    def __init__(self, data_path, storage_path = '', text_tsindex_dirpath = None, image_tsindex_dirpath = None, use_qdrant=True):
         self.data_path = data_path
         self.use_qdrant = use_qdrant
-        self.text_tsindex_filepath = text_tsindex_filepath
-        self.image_tsindex_filepath = image_tsindex_filepath
+        self.text_tsindex_dirpath = text_tsindex_dirpath
+        self.image_tsindex_dirpath = image_tsindex_dirpath
+        self.storage_path = storage_path
     
-    def create_index(self):
-        if self.text_tsindex_filepath:
-            self.text_tsindex = TinyDB(self.text_tsindex_filepath)
-        
-        if self.image_tsindex_filepath:
-            self.image_tsindex  = TinyDB(self.image_tsindex_filepath)
+    def create_ts_index(self):
+        if self.text_tsindex_dirpath:
+            text_index_paths = glob(self.text_tsindex_dirpath+'/*_text_tsindex.json')
+            self.text_tsindex = TinyDB(os.path.join(self.text_tsindex_dirpath, 'text_tsindex.json'))
 
+            for path in text_index_paths:
+                with open(path) as f:
+                    self.text_tsindex.insert_multiple(documents=json.load(f)['_default'].values())
+
+        if self.image_tsindex_dirpath:
+            img_index_paths = glob(self.image_tsindex_dirpath+'/*_image_tsindex.json')
+            self.image_tsindex  = TinyDB(os.path.join(self.image_tsindex_dirpath, 'image_tsindex.json'))
+            
+            for path in img_index_paths:
+                with open(path) as f:
+                    self.image_tsindex.insert_multiple(documents=json.load(f)['_default'].values())
+    
+    def create_vector_index(self, documents=None):
         if self.use_qdrant:
             # Create a local Qdrant vector store
-            self.qdrant_client = qdrant_client.QdrantClient(path="qdrant_mm_db")
+            self.qdrant_client = qdrant_client.QdrantClient(path=self.storage_path)
 
             self.text_store = QdrantVectorStore(client=self.qdrant_client, collection_name="text_collection")
             self.image_store = QdrantVectorStore(client=self.qdrant_client, collection_name="image_collection")
         else:
             self.text_store = LanceDBVectorStore(uri="lancedb", table_name="text_collection")
             self.image_store = LanceDBVectorStore(uri="lancedb", table_name="image_collection")
+        
+        doc_store_path = os.path.join(self.storage_path, 'docstore.json')
+        if os.path.exists(doc_store_path):
+            print(f"Loading index from storage: {self.storage_path}")
+            self.storage_context = StorageContext.from_defaults(persist_dir=self.storage_path)
+            self.index = load_index_from_storage(self.storage_context)
+            if documents is not None:
+                self.add_documents(documents)
+        else:
+            # Create an empty vector store
+            if not documents and os.path.exists(self.data_path):
+                print(f"Creating a new index from the data in {self.data_path}")
+                documents = SimpleDirectoryReader(self.data_path, recursive=True).load_data()
+            else:
+                documents = documents or []
+                print(f"Creating a new index from the documents: {len(documents)}")
+            storage_context = StorageContext.from_defaults(vector_store=self.text_store, image_store=self.image_store)
+            self.index = MultiModalVectorStoreIndex.from_documents(documents, storage_context=storage_context)
+            self.index.storage_context.persist(persist_dir=self.storage_path)
 
-        storage_context = StorageContext.from_defaults(vector_store=self.text_store, image_store=self.image_store)
-
-        # Create the MultiModal index
-        self.documents = SimpleDirectoryReader(self.data_path, recursive=True).load_data()
-
-        self.index = MultiModalVectorStoreIndex.from_documents(
-            self.documents,
-            storage_context=storage_context,
-            )
         self.retriever_engine = self.index.as_retriever(similarity_top_k=5, image_similarity_top_k=5)
+
+    def add_documents(self, documents):
+        self.index.refresh_ref_docs(documents)
+        self.index.storage_context.persist(persist_dir=self.storage_path)
+
+    def add_document(self, document):
+        self.index.insert(document)
+        self.index.storage_context.persist(persist_dir=self.storage_path)
+
+    def count_documents(self):
+        return len(self.index.vector_store.get_nodes())
 
     def print_text_tsindex(self):
         if self.text_tsindex:
@@ -106,7 +141,7 @@ class VideoRag:
 
     def query_with_oai(self, query_str, context, img):
         text_response = self.openai_mm_llm.complete(prompt=VideoRag._query_prompt.format(
-        context_str=context, query_str=query_str, event_metadata=""), image_documents=img,)
+            context_str=context, query_str=query_str, event_metadata=""), image_documents=img)
 
         print(text_response.text)
         return text_response.text
