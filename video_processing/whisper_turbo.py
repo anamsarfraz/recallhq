@@ -129,8 +129,13 @@ class WhisperTurbo:
         """
         result_list = self.result["chunks"]
         # Write the data to a JSON file
+        result_json_data = {"_default": {}}
+        for idx, ts_data in enumerate(result_list):
+            ts_data["start_time"] = ts_data["timestamp"][0]
+            ts_data["end_time"] = ts_data["timestamp"][1]
+            result_json_data["_default"][idx] = ts_data
         with open(output_json_filepath, 'w') as json_file:
-            json.dump(result_list, json_file, indent=4)
+            json.dump(result_json_data, json_file, indent=4)
         print(f"Index saved as f{output_json_filepath}")
 
     def output_textonly_shards(self, output_text_folder, shard_size=10):
@@ -144,11 +149,16 @@ class WhisperTurbo:
             shard_num += 1
 
     def write_shardedlist_tofile(self, sharded_list, filepath):
-        with open(filepath, "w") as f:
-            for x in sharded_list:
-                f.write(f"{x['text'] }\n")
-        print(f"Wrote {filepath}")
+        json_data = {"text": [], "timestamps": []}
+        for x in sharded_list:
+            json_data["timestamps"].append(x['timestamp'])
+            json_data["text"].append(x['text'])
+        json_data["text"] = '\n'.join(json_data["text"])
 
+        with open(filepath, "w") as f:
+            json.dump(json_data, f)
+               
+        print(f"Wrote {filepath}")
 
 # optional main to test this class out:
 if __name__ == "__main__":
