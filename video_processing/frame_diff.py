@@ -37,7 +37,7 @@ class OpenCVFrameWriter:
         self.threshold_ratio = threshold_ratio
         self.frame_outputpath = frame_outputpath
         self.json_index_outputpath = json_index_outputpath
-        self.video_index = []
+        self.video_index = {"_default": {}}
 
     def process_video(self, debug_video_outfile=None):
         """Processes a video, computing frame differences and saving frames."""
@@ -45,12 +45,12 @@ class OpenCVFrameWriter:
 
         prev_frame = None
         frame_count = 0
+        rec_idx = 1
 
         if debug_video_outfile:
             # Define a codec and create a VideoWriter object to save output frames as MP4
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use mp4v codec for MP4 output
             debug_out = cv2.VideoWriter(debug_video_outfile, fourcc, 20.0, (int(cap.get(3)), int(cap.get(4))))
-
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -81,7 +81,8 @@ class OpenCVFrameWriter:
                 # Save the current frame
                 frame_path = f"{self.frame_outputpath}/frame_{frame_count}.jpg"
                 save_frame(frame, frame_path)
-                self.video_index.append({'timestamp': timestamp, 'frame_path': frame_path, 'percent_change': percentage_change})
+                self.video_index["_default"][rec_idx] = {'timestamp': timestamp, 'frame_path': frame_path, 'percent_change': percentage_change}
+                rec_idx += 1
                 if debug_out:
                     debug_out.write(frame)  # Save the frame
 
