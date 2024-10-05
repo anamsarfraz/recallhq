@@ -1,3 +1,4 @@
+accelerate==0.34.2
 aiofiles==23.2.1
 aiohappyeyeballs==2.4.2
 aiohttp==3.10.6
@@ -39,6 +40,7 @@ distro==1.9.0
 executing==2.1.0
 fastapi==0.112.4
 fastembed==0.3.6
+ffmpeg==1.4
 filelock==3.16.1
 filetype==1.2.0
 flatbuffers==24.3.25
@@ -190,6 +192,7 @@ PyStemmer==2.2.0.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 python-engineio==4.9.1
+python-ffmpeg==2.0.12
 python-multipart==0.0.9
 python-socketio==5.11.4
 pytubefix==7.0.0
@@ -228,6 +231,7 @@ syncer==2.0.3
 tantivy==0.22.0
 tenacity==8.5.0
 tiktoken==0.7.0
+tinydb==4.8.0
 tokenizers==0.19.1
 toml==0.10.2
 tomli==2.0.1
