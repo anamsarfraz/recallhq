@@ -249,7 +249,7 @@ uptrace==1.26.0
 uritemplate==4.1.1
 urllib3==2.2.3
 uvicorn==0.25.0
-watchdog==5.0.3
+watchdog<5
 watchfiles==0.20.0
 wcwidth==0.2.13
 wrapt==1.16.0

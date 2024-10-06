@@ -2,7 +2,7 @@ import asyncio
 import streamlit as st
 
 from constants import KNOWLEDGE_BASE_PATH
-from utils import update_state
+from recall_utils import update_state
 from rags.text_rag import save_processed_document, generate_tags
 from video_processing.ingest_video import process_uploaded_media, Video
 

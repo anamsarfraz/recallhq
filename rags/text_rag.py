@@ -7,7 +7,7 @@ from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Document
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core import Settings
 from llama_index.core.callbacks import CallbackManager
-from utils import load_state
+from recall_utils import load_state
 from constants import KNOWLEDGE_BASE_PATH
 from llama_index.core.vector_stores import ExactMatchFilter, MetadataFilters
 from llama_index.core.node_parser import SimpleNodeParser

@@ -1,2 +1,10 @@
 [server]
 maxUploadSize = 500
+port = 8000
+
+[browser]
+serverAddress = "recall.autorun.cloud"
+gatherUsageStats = false
+
+[logger]
+level = "debug"

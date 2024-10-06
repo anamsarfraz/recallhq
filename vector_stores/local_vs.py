@@ -8,7 +8,7 @@ from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageCon
 from llama_index.core.vector_stores.simple import SimpleVectorStore
 from llama_index.embeddings.openai import OpenAIEmbedding
 # Local application imports
-from utils import load_state
+from recall_utils import load_state
 from constants import KNOWLEDGE_BASE_PATH
 
 

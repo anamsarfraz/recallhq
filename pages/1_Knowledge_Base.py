@@ -4,7 +4,7 @@ import time
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from constants import KNOWLEDGE_BASE_PATH
-from utils import load_state
+from recall_utils import load_state
 from rags.text_rag import search_knowledge_base
 from rags.text_rag import get_llm_response
 from rags.scraper import perform_web_search
@@ -183,7 +183,8 @@ if st.session_state.phase == "starters":
                     update_chat_history(event['title'])
                     switch_to_chat()  # Switch to the chat phase
                     st.rerun()  # Rerun the app to update the interface
-                st.markdown(f'<div class="app-tags-container">{" ".join([f"<span class=\'app-tags\'>{tag}</span>" for tag in event["tags"]])}</div>', unsafe_allow_html=True)
+                tags_html = " ".join([f'<span class="app-tags">{tag}</span>' for tag in event["tags"]])
+                st.markdown(f'<div class="app-tags-container">{tags_html}</div>', unsafe_allow_html=True)
 
         # If no results found
         if not filtered_events:
