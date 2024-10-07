@@ -55,6 +55,10 @@ class VideoRag:
     def create_vector_index(self, documents=None):
         if self.use_qdrant:
             # Create a local Qdrant vector store
+            lock_fpath = os.path.join(self.storage_path, '.lock')
+            if os.path.exists(lock_fpath):
+                print(f"Removing lock file: {lock_fpath}")
+                os.remove(lock_fpath)
             self.qdrant_client = qdrant_client.QdrantClient(path=self.storage_path)
 
             self.text_store = QdrantVectorStore(client=self.qdrant_client, collection_name="text_collection")

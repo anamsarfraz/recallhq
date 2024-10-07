@@ -1,5 +1,9 @@
 import json
 import os
+import random
+import string
+
+from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
 
 
 # Function to load state
@@ -22,3 +26,32 @@ def update_state(file_path, new_state):
     
     with open(file_path, "w") as f:
         json.dump(current_state, f)
+
+def generate_random_string(length):
+    # Generate a random string of specified length using letters and digits
+    characters = string.ascii_letters + string.digits
+    random_string = ''.join(random.choice(characters) for _ in range(length))
+    return random_string
+
+def generate_videoclips(new_video_path, video_data, concat=False):
+    """Clip each video and its associated audio and then concatenate clips if required
+    """
+    clips = []
+
+    for v in video_data:
+        clip = VideoFileClip(v['video_file']).subclip(*v['timestamps'])
+        audio = AudioFileClip(v['video_file']).subclip(*v['timestamps'])
+        clip.audio = audio
+        clips.append(clip)
+    if concat:
+        final_clip = concatenate_videoclips(clips)
+        rnd_str = generate_random_string(10)
+        final_path = os.path.join(new_video_path, rnd_str, '.mp4')
+        final_clip.write_videofile(new_video_path, audio_codec='aac')
+        return [final_clip]
+    else:
+        for clip in clips:
+            rnd_str = generate_random_string(10)
+            clip_out_path = os.path.join(new_video_path, rnd_str, '.mp4')
+            clip.write_videofile(clip_out_path)
+        return clips
