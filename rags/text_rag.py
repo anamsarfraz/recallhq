@@ -11,7 +11,7 @@ from recall_utils import load_state
 from constants import KNOWLEDGE_BASE_PATH
 from llama_index.core.vector_stores import ExactMatchFilter, MetadataFilters
 from llama_index.core.node_parser import SimpleNodeParser
-from vector_stores.local_vs import LocalVS
+from video_processing.video_rag_qdrant import VideoRagQdrant
 from llama_index.embeddings.openai import OpenAIEmbedding
 #from langsmith.wrappers import wrap_openai
 
@@ -95,7 +95,26 @@ def load_knowledge_base(media_label):
     print(f"Knowledge base loaded: {input_data}")
     return input_data
 
-def save_processed_document(media_label, input_files):
+def create_new_index(media_label):
+    print(f"Creating or Loading new index for {media_label}")
+    media_label_path = re.sub(r'[^a-zA-Z0-9]', '_', media_label)
+    storage_root_path='./events_kb'
+    media_storage_path = os.path.join(storage_root_path, media_label_path)
+    storage_path = os.path.join(media_storage_path, 'qdrant_mm_db')
+    text_storage_path = os.path.join(media_storage_path, 'text_vector_store')
+    indices_path = os.path.join(media_storage_path, 'indices')
+    data_path = os.path.join(media_storage_path, 'data')
+    
+    video_rag_inst = VideoRagQdrant(data_path,
+        storage_path = storage_path, text_storage_path = text_storage_path,
+        text_tsindex_dirpath = indices_path, image_tsindex_dirpath = indices_path)
+    #video_rag_inst.create_ts_index()
+    video_rag_inst.create_vector_index()
+    video_rag_inst.init_multimodal_oai()
+    
+    return video_rag_inst
+     
+def save_processed_document(media_label, input_files, session_state):
     print(f"Saving processed document in index: {input_files}")
     reader = SimpleDirectoryReader(input_files=input_files)
     documents = []
@@ -104,38 +123,69 @@ def save_processed_document(media_label, input_files):
         documents.append(doc)
     # Update the index with the new documents
     media_label_path = re.sub(r'[^a-zA-Z0-9]', '_', media_label)
-    index = LocalVS(storage_path=os.path.join(os.getenv("LOCALVS_PATH"), media_label_path))
-    index.add_documents(documents)
-    print(f"Index documents count after adding new documents: {index.count_documents()}")
+    storage_root_path='./events_kb'
+    media_storage_path = os.path.join(storage_root_path, media_label_path)
+    storage_path = os.path.join(media_storage_path, 'qdrant_mm_db')
+    text_storage_path = os.path.join(media_storage_path, 'text_vector_store')
+
+    if media_label in session_state:
+        print(f"Index for {media_label} exists in session_state")
+        video_rag_inst = session_state[media_label]
+    else:
+        print(f"Index for {media_label} DOES NOT exist in session_state")
+        video_rag_inst = create_new_index(media_label)
+        session_state[media_label] = video_rag_inst
+        
+    video_rag_inst.add_documents(video_rag_inst.index, storage_path, documents)
+    video_rag_inst.add_documents(video_rag_inst.text_index, text_storage_path, documents)
+    print(f"Index documents count after adding new documents: {video_rag_inst.count_documents()}")
     return documents
 
-def generate_tags(media_label):
-    print(f"Generating tags for media label: {media_label}")
+def generate_tags_and_images(media_label, session_state):
+    print(f"Generating tags and images for media label: {media_label}")
+    storage_root_path='./events_kb'
     media_label_path = re.sub(r'[^a-zA-Z0-9]', '_', media_label)
-    index = LocalVS(storage_path=os.path.join(os.getenv("LOCALVS_PATH"), media_label_path))
-    query_for_tags = f"What are the key highlights of the {media_label}?"
-    relevant_docs = index.retrieve(query_for_tags, retrieval_mode='hybrid', k=10)
-    
-    prompt_for_tags = f"The following are the key highlights of the {media_label}: {relevant_docs}. \
-        Give 3 tags for the {media_label} as a list. \
-        Give the answer in JSON format"
+    media_storage_path = os.path.join(storage_root_path, media_label_path)
+    storage_path = os.path.join(media_storage_path, 'qdrant_mm_db')
+    text_storage_path = os.path.join(media_storage_path, 'text_vector_store')
+    indices_path = os.path.join(media_storage_path, 'indices')
+    data_path = os.path.join(media_storage_path, 'data')
 
-    client = openai.OpenAI(api_key=config["api_key"], base_url=config["endpoint_url"])
-    response = client.chat.completions.create(
-        model=config["model"],    
-        messages=[{"role": "user", "content": prompt_for_tags}],
-        temperature=0.2,
-        response_format={ "type": "json_object" }
-    )
-    response_text = response.choices[0].message.content
+    video_rag_inst = session_state[media_label]
+
+    query_for_metadata = f"What are the key highlights of the {media_label}?"
+    img_docs, text_docs = video_rag_inst.retrieve(query_for_metadata)
+    
+    query_str = f"""Give 3 tags in title case for the {media_label} as a list.
+        Suggest 1 image file path, as a title image, from the provided images for the {media_label}
+        Give the answer in the following JSON format:
+        {{
+            "tags": <list of tags>,
+            "title_image": <image file path from the provide context>
+        }}
+    """
+    context = f"The following are the key highlights of the {media_label}. Answer user's questions from the provided text and image documents. For the title image, give the exact path stored in img_doc.metadata['file_path'] provided in the img_docs"
+    event_metadata = {
+        'text_docs': text_docs,
+        'img_docs': img_docs
+    }
+    video_rag_inst.init_multimodal_oai()
+    
+    response_text = video_rag_inst.query_with_oai(query_str, context, img_docs, event_metadata=event_metadata)
+
     try:
-        new_tags = json.loads(response_text)
+        new_metadata = json.loads(response_text)
+        relative_img_path = new_metadata['title_image'].split('events_kb/', 1)[1]
+        new_metadata['title_image'] = os.path.join('events_kb', relative_img_path)
     except json.JSONDecodeError:
         print(f"Error: Invalid JSON response from OpenAI: {response_text}")
-        new_tags = [media_label]
-    print(f"Updating state with new tags: {new_tags}")
+        new_metadata = {
+            "tags": [media_label],
+            "title_image": None
+        }
+    print(f"Updating state with new tags and title image: {new_metadata}")
     
-    return new_tags
+    return new_metadata
 
 
 
@@ -186,26 +236,27 @@ async def get_llm_response(query, messages, tools_call=True, response_container=
         index_data["arguments"] = ''.join(index_data["arguments"])
     return ''.join(response_text), function_data
 
-def search_knowledge_base(query, media_label):
+def search_knowledge_base(query, media_label, session_state):
     print(f"Query: {query} Media label: {media_label}")
-    embedding_model = OpenAIEmbedding(model="text-embedding-ada-002")
     media_label_path = re.sub(r'[^a-zA-Z0-9]', '_', media_label)
-    
-    index = LocalVS(storage_path=os.path.join(os.getenv("LOCALVS_PATH"), media_label_path), embed_model=embedding_model)
-    print(f"Index documents count: {index.count_documents()}")
-    relevant_docs = index.retrieve(query, retrieval_mode='hybrid', k=10)
 
-    print(f"Number of relevant documents: {len(relevant_docs)}")
+    storage_root_path='./events_kb'
+    media_storage_path = os.path.join(storage_root_path, media_label_path)
+    storage_path = os.path.join(media_storage_path, 'qdrant_mm_db')
+    text_storage_path = os.path.join(media_storage_path, 'text_vector_store')
+    indices_path = os.path.join(media_storage_path, 'indices')
+    data_path = os.path.join(media_storage_path, 'data')  
+
+    video_rag_inst = session_state[media_label]
+
+    print(f"Index documents count: {video_rag_inst.count_documents()}")
+    img_docs, text_docs = video_rag_inst.retrieve(query)
+
+    print(f"Number of relevant text documents: {len(text_docs)}")
+    print(f"Number of relevant image documents: {len(img_docs)}")
     print("\n" + "="*50 + "\n")
 
-    for i, doc in enumerate(relevant_docs):
-        print(f"Document {i+1}:")
-        print(f"Text sample: {doc.node.get_content()[:200]}...")  # Print first 200 characters
-        print(f"Metadata: {doc.node.metadata}")
-        print(f"Score: {doc.score}")
-        print("\n" + "="*50 + "\n")
-
-    return relevant_docs
+    return img_docs, text_docs
 
 if __name__ == "__main__":
     media_label = 'Google I/O 2024'

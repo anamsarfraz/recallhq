@@ -3,7 +3,7 @@ import streamlit as st
 
 from constants import KNOWLEDGE_BASE_PATH
 from recall_utils import update_state
-from rags.text_rag import save_processed_document, generate_tags
+from rags.text_rag import save_processed_document, generate_tags_and_images
 from video_processing.ingest_video import process_uploaded_media, Video
 
 
@@ -16,11 +16,16 @@ def provide_post_process_info(media_label, media_paths):
 def update_knowledge_base(media_label, media_paths):
     if "knowledge_base" not in st.session_state:
         st.session_state.knowledge_base = {}
+    if "indexes" not in st.session_state:
+        st.session_state.indexes = {}
     st.session_state.knowledge_base.setdefault(media_label, {})
+    st.session_state.indexes.setdefault(media_label, {})
     for media_type, paths in media_paths.items():
         st.session_state.knowledge_base[media_label].setdefault(media_type, []).extend(paths)
-    save_processed_document(media_label, media_paths["text_paths"])
-    st.session_state.knowledge_base[media_label]["tags"] = generate_tags(media_label)["tags"]
+    save_processed_document(media_label, media_paths["text_paths"], st.session_state.indexes)
+    tags_and_imgs = generate_tags_and_images(media_label, st.session_state.indexes)
+    st.session_state.knowledge_base[media_label]["tags"] = tags_and_imgs["tags"]
+    st.session_state.knowledge_base[media_label]["title_image"] = tags_and_imgs["title_image"]
     update_state(KNOWLEDGE_BASE_PATH, st.session_state.knowledge_base)
 
 def process_content(is_youtube_link, media_label, content):

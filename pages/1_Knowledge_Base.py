@@ -1,12 +1,13 @@
 import streamlit as st
 import json
+import os
 import time
 import asyncio
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from constants import KNOWLEDGE_BASE_PATH
 from recall_utils import load_state
-from rags.text_rag import search_knowledge_base
-from rags.text_rag import get_llm_response
+from rags.text_rag import search_knowledge_base, create_new_index, get_llm_response
 from rags.scraper import perform_web_search
 
 # CSS for custom styling
@@ -67,8 +68,22 @@ if "phase" not in st.session_state:
     st.session_state.phase = "starters"  # The initial phase is the starter prompts
 if "messages" not in st.session_state:
     st.session_state.messages = []  # Store chat history
+if "knowledge_base" not in st.session_state:
+    st.session_state.knowledge_base = load_state(KNOWLEDGE_BASE_PATH)
+if "indexes" not in st.session_state:
+    st.session_state.indexes = {}
+if "futures" not in st.session_state:
+    st.session_state.futures = {}
 
-
+for media_label in st.session_state.knowledge_base.keys():
+    if media_label not in st.session_state.indexes and media_label not in st.session_state.futures:
+        print(f"Index for {media_label} does not exist. Need to add to futures")
+        tp_executor = ThreadPoolExecutor(max_workers=1)
+        future = tp_executor.submit(create_new_index, media_label)
+        st.session_state.futures[media_label] = [future, tp_executor]
+    else:
+        print(f"Index for {media_label} exists in future or index")
+    
 # Function to generate a response from OpenAI GPT-3.5
 async def get_openai_response(user_query):
     print(f"User query: {user_query}")
@@ -76,10 +91,10 @@ async def get_openai_response(user_query):
     st.session_state.messages.append(msg)
     st.chat_message(msg["role"]).write(msg["content"])
     response_container = st.empty()
-    relevant_docs = search_knowledge_base(user_query, st.session_state.media_label)
+    img_docs, text_docs = search_knowledge_base(user_query, st.session_state.media_label, st.session_state.indexes)
     prompt = f"""
         Context:
-        {relevant_docs}
+        {text_docs}
         """
     st.session_state.messages.append({"role": "system", "content": prompt})
     response_text, function_data = await get_llm_response(user_query, messages=st.session_state.messages, tools_call=True, response_container=response_container)
@@ -114,12 +129,34 @@ async def get_openai_response(user_query):
             st.session_state.messages.append({"role": "assistant", "content": response_text})
         else:
             st.session_state.messages.append({"role": "assistant", "content": "This is all the information I could gather for your question."})
+    
+    if img_docs:
+        for doc in img_docs:
+            st.image(doc.metadata["file_path"])
+            st.session_state.messages.append({"role": "assistant", "content": doc.metadata["file_path"], "is_image": True})
 
+    if text_docs:
+        for doc in text_docs:
+            text_path = doc['file_path']
+            video_path = os.path.join(os.getcwd(), 'temp', 'video_data', Path(text_path).parent.name+'.mp4')
+            start_time = doc['timestamps'][0][0]
+            end_time = doc['timestamps'][-1][-1]
+            print(f"Adding video: {video_path} from {start_time} to {end_time}")
+            st.video(video_path, start_time=start_time, end_time=end_time)
+            st.session_state.messages.append(
+                {"role": "assistant", "content": video_path, "is_video": True, "start_time": start_time, "end_time": end_time}
+                )
     return response_text
 
 # Function to switch to the chat interface
 def switch_to_chat():
+    print("Switching to chat on button click")
     st.session_state.phase = "chat"
+    if st.session_state["media_label"] in st.session_state.futures:
+        print(f"Processing index update for {st.session_state["media_label"]}")
+        future, tp_executor = st.session_state.futures.pop(st.session_state["media_label"])
+        st.session_state.indexes[st.session_state["media_label"]] = future.result()
+        tp_executor.shutdown()
 
 # Function to switch back to starter prompts
 def switch_to_starters():
@@ -137,21 +174,31 @@ def update_chat_history(topic):
 def display_chat_history():
     for msg in st.session_state.messages:
         if msg["role"] in {"user", "assistant"}:
-            st.chat_message(msg["role"]).write(msg["content"])
+            if msg.get("is_image"):
+                st.image(msg["content"])
+            elif msg.get("is_video"):
+                st.video(msg["content"], start_time=msg["start_time"], end_time=msg["end_time"])
+            else:    
+                st.chat_message(msg["role"]).write(msg["content"])
 
 # Streamlit layout
 st.title("Knowledge Base for Events")
 
 # PHASE: Starter Prompts
 if st.session_state.phase == "starters":
+
     if st.session_state.setdefault("knowledge_base", load_state(KNOWLEDGE_BASE_PATH)):
         starter_prompts = []
         #st.write("Chat with one of the events below to get more information about the event.")
         for media_label, event_data in st.session_state.knowledge_base.items():
+            if event_data.get("title_image"):
+                image_path = os.path.join(os.getcwd(), event_data.get("title_image"))
+            else:
+                image_path = f"https://via.placeholder.com/150?text={media_label.replace(' ', '+')}"
             starter_prompts.append({
                 "title": media_label,
                 "tags": event_data["tags"],
-                "image": f"https://via.placeholder.com/150?text={media_label.replace(' ', '+')}"
+                "image": image_path 
             })
         # Extract all unique tags from the events data
         all_tags = sorted(set(tag for event in starter_prompts for tag in event['tags']))
@@ -199,7 +246,6 @@ if st.session_state.phase == "chat":
     # Display chat history
     go_back_button = st.button("Go Back to Knowledge Base")
     display_chat_history()
-
     # Free-form input for chat
     # user_input = st.text_input("Ask your own question:")
     
