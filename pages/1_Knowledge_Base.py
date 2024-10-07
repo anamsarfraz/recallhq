@@ -132,8 +132,10 @@ async def get_openai_response(user_query):
     
     if img_docs:
         for doc in img_docs:
-            st.image(doc.metadata["file_path"])
-            st.session_state.messages.append({"role": "assistant", "content": doc.metadata["file_path"], "is_image": True})
+            relative_img_path = doc.metadata["file_path"].split('events_kb/', 1)[1]
+            new_img_path = os.path.join('events_kb', relative_img_path)
+            st.image(new_img_path)
+            st.session_state.messages.append({"role": "assistant", "content": new_img_path, "is_image": True})
 
     if text_docs:
         for doc in text_docs:
@@ -153,8 +155,8 @@ def switch_to_chat():
     print("Switching to chat on button click")
     st.session_state.phase = "chat"
     if st.session_state["media_label"] in st.session_state.futures:
-        print(f"Processing index update for {st.session_state["media_label"]}")
-        future, tp_executor = st.session_state.futures.pop(st.session_state["media_label"])
+        print(f"Processing index update for {st.session_state['media_label']}")
+        future, tp_executor = st.session_state.futures.pop(st.session_state['media_label'])
         st.session_state.indexes[st.session_state["media_label"]] = future.result()
         tp_executor.shutdown()
 
