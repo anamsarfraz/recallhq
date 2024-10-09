@@ -38,15 +38,26 @@ class VideoRag:
     def create_ts_index(self):
         if self.text_tsindex_dirpath:
             text_index_paths = glob(self.text_tsindex_dirpath+'/*_text_tsindex.json')
-            self.text_tsindex = TinyDB(os.path.join(self.text_tsindex_dirpath, 'text_tsindex.json'))
+            text_index_agg_path = os.path.join(self.text_tsindex_dirpath, 'text_tsindex.json')
+            
+            if os.path.exists(text_index_agg_path):
+                print(f"Removing placeholder text index file: {text_index_agg_path}")
+                os.remove(text_index_agg_path)
 
+            self.text_tsindex = TinyDB(text_index_agg_path)
             for path in text_index_paths:
                 with open(path) as f:
                     self.text_tsindex.insert_multiple(documents=json.load(f)['_default'].values())
 
         if self.image_tsindex_dirpath:
             img_index_paths = glob(self.image_tsindex_dirpath+'/*_image_tsindex.json')
-            self.image_tsindex  = TinyDB(os.path.join(self.image_tsindex_dirpath, 'image_tsindex.json'))
+            img_index_agg_path = os.path.join(self.image_tsindex_dirpath, 'image_tsindex.json')
+  
+            if os.path.exists(img_index_agg_path):
+                print(f"Removing placeholder image index file: {img_index_agg_path}")
+                os.remove(img_index_agg_path)
+  
+            self.image_tsindex  = TinyDB(img_index_agg_path)
             self.ImageDoc = Query()
             
             for path in img_index_paths:
