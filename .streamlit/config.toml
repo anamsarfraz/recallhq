@@ -6,4 +6,4 @@ port = 8000
 gatherUsageStats = false
 
 [logger]
-level = "debug"
+level = "info"

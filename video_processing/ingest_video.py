@@ -11,8 +11,8 @@ import string
 import os
 import re
 import argparse
-from .frame_diff import OpenCVFrameWriter
-from .whisper_turbo import WhisperTurbo
+from video_processing.frame_diff import OpenCVFrameWriter
+from video_processing.whisper_turbo import WhisperTurbo
 
 def replace_non_alphanumeric(input_string, rep_string):
     # Replace all non-alphabetic and non-numeric characters with a space
@@ -84,7 +84,7 @@ class Video:
         dict: A dictionary containing the metadata of the video.
         """
 
-        yt = YouTube(self.url, 'WEB_CREATOR', on_progress_callback=on_progress)
+        yt = YouTube(self.url, 'ANDROID', on_progress_callback=on_progress)
         metadata = {"Author": yt.author, "Title": yt.title, "Views": yt.views}
         rnd_str = generate_random_string(10)
         outfilename = generate_filename(yt.title, rnd_str)
@@ -186,6 +186,7 @@ class Video:
         make_tempdirs(output_folder)
         (_, video_outfile) = self._download_video(output_folder)
         self.video_filepath = f"{output_folder}/{video_outfile}"
+        self.file_prefix = Path(self.video_filepath).stem
     
     def process_video_with_index(self, events_folder):
         self.audio_filepath = get_audio_outfile(self.video_filepath)
