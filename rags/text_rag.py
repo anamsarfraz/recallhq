@@ -176,6 +176,7 @@ def load_mm_data(video_rag_inst, media_label, media_storage_path, video_paths):
                 img_documents[idx+i].text = image_info['description']
                 img_path = img_documents[idx+i].metadata['file_path']
                 search_path = os.path.join(Path(img_path).parent.name, Path(img_path).name)
+                print(search_path)
                 img_documents[idx+i].metadata['timestamp'] = video_rag_inst.image_search(search_path)
         all_img_docs.extend(img_documents)
     
@@ -225,7 +226,7 @@ def generate_tags_and_images(media_label, session_state):
         Give the answer in the following JSON format:
         {{
             "tags": <list of tags>,
-            "title_image": <image file path from the provide context>
+            "title_image": <image file path from the provided context>
         }}
     """
     context = f"The following are the key highlights of the {media_label}. Answer user's questions from the provided text and image documents. For the title image, give the exact path stored in img_doc.metadata['file_path'] provided in the img_docs"
@@ -238,11 +239,14 @@ def generate_tags_and_images(media_label, session_state):
 
     try:
         new_metadata = json.loads(response_text)
-        if new_metadata['title_image']:
+        try:
             relative_img_path = new_metadata['title_image'].split('events_kb/', 1)[1]
             new_metadata['title_image'] = os.path.join('events_kb', relative_img_path)
+        except Exception as ie:
+            print(f"Error processing title image path: {traceback.print_exc(ie)}")
+            new_metadata['title_image'] = None 
     except Exception as e:
-        print(f"Error: Invalid JSON response from OpenAI: {response_text}, {traceback.print_exc()}")
+        print(f"Error: Invalid JSON response from OpenAI: {response_text}, {traceback.print_exc(e)}")
         new_metadata = {
             "tags": [media_label],
             "title_image": None
