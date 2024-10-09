@@ -1,5 +1,5 @@
 
-from .video_rag import VideoRag
+from video_processing.video_rag import VideoRag
 
 from llama_index.core.schema import ImageNode, ImageDocument
 

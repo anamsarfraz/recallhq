@@ -206,18 +206,23 @@ if st.session_state.phase == "starters":
         all_tags = sorted(set(tag for event in starter_prompts for tag in event['tags']))
 
                 # Multi-select search bar with pre-filled tags
-        selected_tags = st.multiselect("Select filter(s) below to get the related events for your search", all_tags, default=all_tags)
+        selected_tags = st.multiselect("Select filter(s) below to get the related events for your search", all_tags, default=[])
 
         # Filter the events based on the selected tags
-        filtered_events = [event for event in starter_prompts if any(tag in event["tags"] for tag in selected_tags)]
+        if selected_tags:
+            filtered_events = [event for event in starter_prompts if any(tag in event["tags"] for tag in selected_tags)]
+        else:
+            filtered_events = starter_prompts
 
-        # "Query Results" Title
-        st.markdown('<h3 class="query-results-title">Query Results</h3>', unsafe_allow_html=True)
+        subtitle = "Query Results" if selected_tags else "Events Information"
+        res_suffix = "result" if selected_tags else "event"
+    
+        st.markdown(f'<h3 class="query-results-title">{subtitle}</h3>', unsafe_allow_html=True)
         st.markdown('<h7 class="query-results-title">Chat with one of the events below to get more information about the event.</h7>', unsafe_allow_html=True)
         st.markdown('<hr>', unsafe_allow_html=True)
 
         # Display number of results in a highlighted tag style
-        st.markdown(f'<span style="background-color:#E0F7FA; color:black; padding:3px 10px; border-radius:5px;">{len(filtered_events)} result(s)</span>', unsafe_allow_html=True)
+        st.markdown(f'<span style="background-color:#E0F7FA; color:black; padding:3px 10px; border-radius:5px;">{len(filtered_events)} {res_suffix}(s)</span>', unsafe_allow_html=True)
 
         # Display filtered events
         cols = st.columns(3)  # Set up a multi-column layout

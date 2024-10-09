@@ -13,7 +13,7 @@ from llama_index.core.schema import ImageNode
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal
 
 import qdrant_client
-from tinydb import TinyDB
+from tinydb import TinyDB, Query
 
 
 class VideoRag:
@@ -47,6 +47,7 @@ class VideoRag:
         if self.image_tsindex_dirpath:
             img_index_paths = glob(self.image_tsindex_dirpath+'/*_image_tsindex.json')
             self.image_tsindex  = TinyDB(os.path.join(self.image_tsindex_dirpath, 'image_tsindex.json'))
+            self.ImageDoc = Query()
             
             for path in img_index_paths:
                 with open(path) as f:
@@ -76,7 +77,7 @@ class VideoRag:
                 self.add_documents(self.index, self.storage_path, documents)
         else:
             # Create an empty vector store
-            if not documents and os.path.exists(self.data_path):
+            if documents is None and os.path.exists(self.data_path):
                 print(f"Creating a new index from the data in {self.data_path}")
                 documents = SimpleDirectoryReader(self.data_path, recursive=True).load_data()
             else:
@@ -93,7 +94,7 @@ class VideoRag:
             if documents is not None:
                 self.add_documents(self.text_index, self.text_storage_path, documents)
         else:
-            if not documents and os.path.exists(self.data_path):
+            if documents is None and os.path.exists(self.data_path):
                 print(f"Creating a new text index from the data in {self.data_path}")
                 documents = SimpleDirectoryReader(input_dir=self.data_path, required_exts = [".txt"], recursive=True).load_data()
             else:
@@ -143,6 +144,9 @@ class VideoRag:
         else:
             print("Image ts index doesn't exist.")
 
+    def image_search(self, search_path):
+        return self.image_tsindex.search(self.ImageDoc.frame_path.matches(f'.*{search_path}'))[0]['timestamp']
+    
     def retrieve_internal(self, retriever_engine, query_str):
         retrieval_results = retriever_engine.retrieve(query_str)
 

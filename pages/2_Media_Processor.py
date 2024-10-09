@@ -1,10 +1,12 @@
 import asyncio
+import os
+import re
 import streamlit as st
 
 from constants import KNOWLEDGE_BASE_PATH
 from recall_utils import update_state
 from rags.text_rag import save_processed_document, generate_tags_and_images
-from video_processing.ingest_video import process_uploaded_media, Video
+from video_processing.ingest_video import save_uploaded_media, Video
 
 
 def provide_post_process_info(media_label, media_paths):
@@ -19,36 +21,46 @@ def update_knowledge_base(media_label, media_paths):
     if "indexes" not in st.session_state:
         st.session_state.indexes = {}
     st.session_state.knowledge_base.setdefault(media_label, {})
-    st.session_state.indexes.setdefault(media_label, {})
     for media_type, paths in media_paths.items():
         st.session_state.knowledge_base[media_label].setdefault(media_type, []).extend(paths)
-    save_processed_document(media_label, media_paths["text_paths"], st.session_state.indexes)
+    save_processed_document(media_label, media_paths["video_paths"], st.session_state.indexes)
     tags_and_imgs = generate_tags_and_images(media_label, st.session_state.indexes)
     st.session_state.knowledge_base[media_label]["tags"] = tags_and_imgs["tags"]
     st.session_state.knowledge_base[media_label]["title_image"] = tags_and_imgs["title_image"]
     update_state(KNOWLEDGE_BASE_PATH, st.session_state.knowledge_base)
 
 def process_content(is_youtube_link, media_label, content):
+    storage_root_path='./events_kb'
+    media_label_path = re.sub(r'[^a-zA-Z0-9]', '_', media_label)
+    storage_path = os.path.join(storage_root_path, media_label_path)
+    video_paths = []
+    audio_paths = []
+    text_paths = []
+    
     if is_youtube_link:
         youtube_links = content.split(',')
-        video_paths = []
-        audio_paths = []
-        text_paths = []
+
         for youtube_link in youtube_links:
             video = Video.from_url(youtube_link.strip())
             video.download()
-            video_path, audio_path, text_path = video.process_video()
+            video_path, audio_path, text_path = video.process_video_with_index(storage_path)
+            video.extract_images_with_index(storage_path)
+
             video_paths.append(video_path)
             audio_paths.append(audio_path)
             text_paths.append(text_path)
     else:
-        video_path, audio_path, text_path = process_uploaded_media(content)
-        if video_path is None and audio_path is None and text_path is None:
+        media_path, file_name, file_ext = save_uploaded_media(content)
+        if file_ext not in {"mp4"}:
             st.error("Failed to process the uploaded media. Please make sure the media is in a supported format.")
             return
-        video_paths = [video_path] if video_path else []
-        audio_paths = [audio_path] if audio_path else []
-        text_paths = [text_path]
+        video = Video.from_file(media_path)
+        video_path, audio_path, text_path = video.process_video_with_index(storage_path)
+        video.extract_images_with_index(storage_path)
+        
+        video_paths.append(video_path)
+        audio_paths.append(audio_path)
+        text_paths.append(text_path)
 
     media_paths = {
         "text_paths": text_paths
@@ -72,7 +84,7 @@ def setup_media_processor_page():
         media_label = st.text_input(label="Media Tag", placeholder="Enter a required label or tag to identify the media")
         youtube_links = st.text_input(label="🔗 YouTube Link(s)",
                                                     placeholder="Enter your YouTube link(s) to download the video and extract the audio")
-        uploaded_media = st.file_uploader("📁 Upload your file", type=['mp4', 'wav', 'txt'])
+        uploaded_media = st.file_uploader("📁 Upload your file", type=['mp4'])
         submit_button = st.form_submit_button(label="Process Media")
 
         if media_label and submit_button and (youtube_links or uploaded_media):

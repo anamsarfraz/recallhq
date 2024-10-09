@@ -3,6 +3,8 @@ import json
 import os
 import re
 from dotenv import load_dotenv
+from pathlib import Path
+import traceback
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Document
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core import Settings
@@ -108,38 +110,100 @@ def create_new_index(media_label):
     video_rag_inst = VideoRagQdrant(data_path,
         storage_path = storage_path, text_storage_path = text_storage_path,
         text_tsindex_dirpath = indices_path, image_tsindex_dirpath = indices_path)
-    #video_rag_inst.create_ts_index()
-    video_rag_inst.create_vector_index()
+    video_rag_inst.create_ts_index()
+    video_rag_inst.create_vector_index(documents=[])
     video_rag_inst.init_multimodal_oai()
     
     return video_rag_inst
-     
-def save_processed_document(media_label, input_files, session_state):
-    print(f"Saving processed document in index: {input_files}")
-    reader = SimpleDirectoryReader(input_files=input_files)
-    documents = []
-    for doc in reader.load_data():
-        doc.metadata["media_label"] = media_label
-        documents.append(doc)
-    # Update the index with the new documents
+
+def load_mm_data(video_rag_inst, media_label, media_storage_path, video_paths):
+    data_path = os.path.join(media_storage_path, 'data')
+    text_shard_path = os.path.join(data_path, 'shards')
+    images_path = os.path.join(data_path, 'frames')
+
+    text_docs = []
+    all_img_docs = []
+    query_str = """Describe each image in context of the video. Give answer in the following JSON format
+    {
+        "images" : [
+            {
+                "frame": <file_name from the image document metadata>,
+                "description": <frame_description>
+            },
+                "images" : [
+            {
+                "frame": <file_name from the image document metadata>,
+                "description": <frame_description>
+            },
+            ...
+        ]
+    }"""
+
+    context = f"These are the frame of a video from the {media_label} event"
+    event_metadata = ""
+
+    for video_filepath in video_paths:
+        file_prefix = Path(video_filepath).stem
+
+        video_transcript_shard_path = os.path.join(text_shard_path, file_prefix)
+        reader = SimpleDirectoryReader(video_transcript_shard_path, recursive=True)
+        print(f"Loading transcript shard from  : {video_transcript_shard_path}")
+        for doc in reader.load_data():
+            doc.metadata["media_label"] = media_label
+            content = json.loads(doc.text)
+            doc.text = content['text']
+            doc.metadata['timestamps'] = content['timestamps']    
+            text_docs.append(doc)
+
+        image_frame_path = os.path.join(images_path, file_prefix)
+        img_documents = SimpleDirectoryReader(image_frame_path, recursive=True).load_data()
+        print(f"Loading images frames from  : {image_frame_path}")
+        for idx in range(0, len(img_documents), 10):
+            img_docs_to_procss = img_documents[idx:idx+10]
+            print(img_docs_to_procss)
+            try:
+                text_response = video_rag_inst.query_with_oai(query_str, context, img_docs_to_procss, event_metadata=event_metadata)
+            except Exception as e:
+                print("Error getting response")
+                d = {'images': []}
+                for i in range(len(img_docs_to_procss)):
+                    d['images'].append({'frame': '', 'description': ''})
+                text_response = json.dumps(d)
+
+            print(text_response)
+            images_data = json.loads(text_response)
+            for i, image_info in enumerate(images_data['images']):
+                img_documents[idx+i].text = image_info['description']
+                img_path = img_documents[idx+i].metadata['file_path']
+                search_path = os.path.join(Path(img_path).parent.name, Path(img_path).name)
+                img_documents[idx+i].metadata['timestamp'] = video_rag_inst.image_search(search_path)
+        all_img_docs.extend(img_documents)
+    
+    return text_docs, all_img_docs
+
+def save_processed_document(media_label, video_paths, session_state):
     media_label_path = re.sub(r'[^a-zA-Z0-9]', '_', media_label)
     storage_root_path='./events_kb'
     media_storage_path = os.path.join(storage_root_path, media_label_path)
     storage_path = os.path.join(media_storage_path, 'qdrant_mm_db')
     text_storage_path = os.path.join(media_storage_path, 'text_vector_store')
 
+    
+    # Update the index with the new documents
     if media_label in session_state:
-        print(f"Index for {media_label} exists in session_state")
+        print(f"Index for {media_label} exists in session_state: {session_state}")
         video_rag_inst = session_state[media_label]
     else:
         print(f"Index for {media_label} DOES NOT exist in session_state")
         video_rag_inst = create_new_index(media_label)
         session_state[media_label] = video_rag_inst
-        
-    video_rag_inst.add_documents(video_rag_inst.index, storage_path, documents)
-    video_rag_inst.add_documents(video_rag_inst.text_index, text_storage_path, documents)
-    print(f"Index documents count after adding new documents: {video_rag_inst.count_documents()}")
-    return documents
+
+    text_docs, img_docs = load_mm_data(video_rag_inst, media_label, media_storage_path, video_paths)
+    video_rag_inst.add_documents(video_rag_inst.index, storage_path, text_docs+img_docs)
+    video_rag_inst.add_documents(video_rag_inst.text_index, text_storage_path, text_docs)
+    print(f"Multimodal Index documents count after adding new documents: {video_rag_inst.count_documents()}")
+    print(f"Text Index documents count after adding new documents: {video_rag_inst.count_text_documents()}")
+    return text_docs, img_docs
 
 def generate_tags_and_images(media_label, session_state):
     print(f"Generating tags and images for media label: {media_label}")
@@ -169,16 +233,16 @@ def generate_tags_and_images(media_label, session_state):
         'text_docs': text_docs,
         'img_docs': img_docs
     }
-    video_rag_inst.init_multimodal_oai()
     
     response_text = video_rag_inst.query_with_oai(query_str, context, img_docs, event_metadata=event_metadata)
 
     try:
         new_metadata = json.loads(response_text)
-        relative_img_path = new_metadata['title_image'].split('events_kb/', 1)[1]
-        new_metadata['title_image'] = os.path.join('events_kb', relative_img_path)
-    except json.JSONDecodeError:
-        print(f"Error: Invalid JSON response from OpenAI: {response_text}")
+        if new_metadata['title_image']:
+            relative_img_path = new_metadata['title_image'].split('events_kb/', 1)[1]
+            new_metadata['title_image'] = os.path.join('events_kb', relative_img_path)
+    except Exception as e:
+        print(f"Error: Invalid JSON response from OpenAI: {response_text}, {traceback.print_exc()}")
         new_metadata = {
             "tags": [media_label],
             "title_image": None
