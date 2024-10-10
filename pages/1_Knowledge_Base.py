@@ -6,7 +6,7 @@ import asyncio
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from constants import KNOWLEDGE_BASE_PATH
-from recall_utils import load_state
+from recall_utils import load_state, generate_videoclips
 from rags.text_rag import search_knowledge_base, create_new_index, get_llm_response
 from rags.scraper import perform_web_search
 
@@ -97,7 +97,8 @@ async def get_openai_response(user_query):
         {text_docs}
         """
     st.session_state.messages.append({"role": "system", "content": prompt})
-    response_text, function_data = await get_llm_response(user_query, messages=st.session_state.messages, tools_call=True, response_container=response_container)
+    # Setting tools call to False to not return function data
+    response_text, function_data = await get_llm_response(user_query, messages=st.session_state.messages, tools_call=False, response_container=response_container)
     if response_text:
         st.session_state.messages.append({"role": "assistant", "content": response_text})
     if function_data:
@@ -138,15 +139,19 @@ async def get_openai_response(user_query):
             st.session_state.messages.append({"role": "assistant", "content": new_img_path, "is_image": True})
 
     if text_docs:
+        new_video_path = './temp/video_clips'
         for doc in text_docs:
             text_path = doc['file_path']
             video_path = os.path.join(os.getcwd(), 'temp', 'video_data', Path(text_path).parent.name+'.mp4')
             start_time = doc['timestamps'][0][0]
             end_time = doc['timestamps'][-1][-1]
             print(f"Adding video: {video_path} from {start_time} to {end_time}")
-            st.video(video_path, start_time=start_time, end_time=end_time)
+
+            video_data = [{'video_file': video_path, 'timestamps': [start_time, end_time]}]
+            clips, clip_paths = generate_videoclips(new_video_path, video_data)
+            st.video(clip_paths[0])
             st.session_state.messages.append(
-                {"role": "assistant", "content": video_path, "is_video": True, "start_time": start_time, "end_time": end_time}
+                {"role": "assistant", "content": clip_paths[0], "is_video": True, "start_time": start_time, "end_time": end_time}
                 )
     return response_text
 
