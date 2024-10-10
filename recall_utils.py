@@ -37,6 +37,7 @@ def generate_videoclips(new_video_path, video_data, concat=False):
     """Clip each video and its associated audio and then concatenate clips if required
     """
     clips = []
+    clip_paths = []
 
     for v in video_data:
         clip = VideoFileClip(v['video_file']).subclip(*v['timestamps'])
@@ -46,12 +47,14 @@ def generate_videoclips(new_video_path, video_data, concat=False):
     if concat:
         final_clip = concatenate_videoclips(clips)
         rnd_str = generate_random_string(10)
-        final_path = os.path.join(new_video_path, rnd_str, '.mp4')
-        final_clip.write_videofile(new_video_path, audio_codec='aac')
-        return [final_clip]
+        final_path = os.path.join(new_video_path, rnd_str+'.mp4')
+        final_clip.write_videofile(final_path, audio_codec='aac', codec='libx264')
+        clip_paths.append(final_path)
+        return [final_clip], clip_paths
     else:
         for clip in clips:
             rnd_str = generate_random_string(10)
-            clip_out_path = os.path.join(new_video_path, rnd_str, '.mp4')
-            clip.write_videofile(clip_out_path)
-        return clips
+            clip_out_path = os.path.join(new_video_path, rnd_str+'.mp4')
+            clip.write_videofile(clip_out_path, audio_codec='aac', codec='libx264')
+            clip_paths.append(clip_out_path)
+        return clips, clip_paths
