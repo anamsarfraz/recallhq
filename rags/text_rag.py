@@ -239,18 +239,20 @@ def generate_tags_and_images(media_label, session_state):
 
     try:
         new_metadata = json.loads(response_text)
-        try:
-            relative_img_path = new_metadata['title_image'].split('events_kb/', 1)[1]
-            new_metadata['title_image'] = os.path.join('events_kb', relative_img_path)
-        except Exception as ie:
-            print(f"Error processing title image path: {traceback.print_exc(ie)}")
-            new_metadata['title_image'] = None 
+        
     except Exception as e:
-        print(f"Error: Invalid JSON response from OpenAI: {response_text}, {traceback.print_exc(e)}")
+        print(f"Error: Invalid JSON response from OpenAI: {response_text}, {traceback.print_exc()}")
         new_metadata = {
             "tags": [media_label],
             "title_image": None
         }
+    else:
+        try:
+            relative_img_path = new_metadata['title_image'].split('events_kb/', 1)[1]
+            new_metadata['title_image'] = os.path.join('events_kb', relative_img_path)
+        except Exception as ie:
+            print(f"Error processing title image path: {traceback.print_exc()}")
+            new_metadata['title_image'] = None 
     print(f"Updating state with new tags and title image: {new_metadata}")
     
     return new_metadata
