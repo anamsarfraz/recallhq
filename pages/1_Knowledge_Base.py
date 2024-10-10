@@ -7,7 +7,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from constants import KNOWLEDGE_BASE_PATH
 from recall_utils import load_state, generate_videoclips
-from rags.text_rag import search_knowledge_base, create_new_index, get_llm_response
+from rags.text_rag import search_knowledge_base, create_new_index, get_llm_response, get_mm_llm_response
 from rags.scraper import perform_web_search
 
 # CSS for custom styling
@@ -92,13 +92,15 @@ async def get_openai_response(user_query):
     st.chat_message(msg["role"]).write(msg["content"])
     response_container = st.empty()
     img_docs, text_docs = search_knowledge_base(user_query, st.session_state.media_label, st.session_state.indexes)
-    prompt = f"""
-        Context:
-        {text_docs}
-        """
-    st.session_state.messages.append({"role": "system", "content": prompt})
-    # Setting tools call to False to not return function data
-    response_text, function_data = await get_llm_response(user_query, messages=st.session_state.messages, tools_call=False, response_container=response_container)
+    # prompt = f"""
+    #   Context:
+    #    {text_docs}
+    #    """
+    # st.session_state.messages.append({"role": "system", "content": prompt})
+    # Setting tools call to False to not return function data.
+    # Commenting out the sync API call
+    # response_text, function_data = await get_llm_response(user_query, messages=st.session_state.messages, tools_call=False, response_container=response_container)
+    response_text, function_data  = await get_mm_llm_response(user_query, text_docs, img_docs, st.session_state.media_label, st.session_state.indexes, response_container)
     if response_text:
         st.session_state.messages.append({"role": "assistant", "content": response_text})
     if function_data:

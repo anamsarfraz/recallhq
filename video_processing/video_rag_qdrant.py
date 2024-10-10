@@ -75,3 +75,8 @@ class VideoRagQdrant(VideoRag):
 
         return text_response.text
 
+    async def query_with_oai_stream(self, query_str, context, img_docs, event_metadata=""):
+        stream = await self.openai_mm_llm.astream_complete(prompt=VideoRag._query_prompt.format(
+            context_str=context, query_str=query_str, event_metadata=event_metadata),
+            image_documents=img_docs)
+        return stream
